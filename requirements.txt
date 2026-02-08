@@ -1,0 +1,13 @@
+numpy
+pandas
+yfinance
+matplotlib
+scikit-learn
+torch
+gymnasium
+shap
+streamlit
+fastapi
+uvicorn
+sqlalchemy
+pydantic
