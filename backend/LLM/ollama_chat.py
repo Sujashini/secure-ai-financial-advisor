@@ -8,10 +8,76 @@ from typing import Optional
 
 OLLAMA_URL = "http://localhost:11434/api/generate"
 
-# Make sure this model is pulled:
-#   ollama pull llama3:8b
+# Make sure this model is pulled, for example:
+#   ollama pull mistral:7b
 MODEL_NAME = "mistral:7b"
 
+
+# ======================================
+# Security helpers: sanitisation & filtering
+# ======================================
+
+def sanitize_user_question(user_question: str) -> str:
+    """
+    Basic input sanitisation to reduce prompt injection and unsafe requests.
+    Returns either the (possibly truncated) question or a block message.
+    """
+    lowered = user_question.lower()
+
+    banned_phrases = [
+        "ignore previous instructions",
+        "act as a financial advisor",
+        "guarantee profits",
+        "tell me exactly what to buy",
+        "tell me exactly what to sell",
+    ]
+
+    for phrase in banned_phrases:
+        if phrase in lowered:
+            return (
+                "User query blocked due to unsafe or non-compliant request. "
+                "The system can only provide high-level educational explanations, "
+                "not direct financial advice."
+            )
+
+    # Optionally enforce a maximum length to avoid prompt stuffing
+    max_len = 1000
+    if len(user_question) > max_len:
+        return user_question[:max_len]
+
+    return user_question
+
+
+def filter_llm_response(raw_response: str) -> str:
+    """
+    Post-process the model output to remove explicit financial advice
+    or overly strong action-oriented language.
+    """
+    lowered = raw_response.lower()
+    banned_terms = [
+        "you should buy",
+        "you should sell",
+        "definitely buy",
+        "definitely sell",
+        "this is guaranteed",
+        "guaranteed profit",
+    ]
+
+    for term in banned_terms:
+        if term in lowered:
+            return (
+                "This explanation was blocked because it appeared to contain "
+                "direct financial advice or guarantees. The system is intended "
+                "for educational purposes only and cannot tell you what trades "
+                "to make."
+            )
+
+    return raw_response
+
+
+# ======================================
+# Main advisor chat entry point
+# ======================================
 
 def chat_with_advisor(
     user_question: str,
@@ -50,8 +116,15 @@ def chat_with_advisor(
         Advisor's natural-language response.
     """
 
+    # 1) Input sanitisation
+    cleaned_question = sanitize_user_question(user_question)
+
+    # If the question was blocked, return the block message directly
+    if cleaned_question.startswith("User query blocked"):
+        return cleaned_question
+
     # =========================
-    # Core context for the LLM
+    # 2) Core context for the LLM (structured prompting)
     # =========================
     base_context = textwrap.dedent(
         f"""
@@ -73,9 +146,7 @@ def chat_with_advisor(
         """
     )
 
-    # =========================
     # Optional historical testing context
-    # =========================
     if backtest_summary:
         base_context += textwrap.dedent(
             f"""
@@ -85,9 +156,7 @@ def chat_with_advisor(
             """
         )
 
-    # =========================
     # Conversation memory
-    # =========================
     history_block = ""
     if conversation_history:
         history_block = textwrap.dedent(
@@ -97,9 +166,7 @@ def chat_with_advisor(
             """
         )
 
-    # =========================
-    # Final prompt
-    # =========================
+    # Final prompt with explicit behavioural constraints
     prompt = textwrap.dedent(
         f"""
         {base_context}
@@ -107,7 +174,7 @@ def chat_with_advisor(
 
         The user now asks:
 
-        "{user_question}"
+        "{cleaned_question}"
 
         Instructions:
         1. Answer in 3–6 short sentences.
@@ -116,13 +183,14 @@ def chat_with_advisor(
         4. Do NOT invent specific numbers or predictions.
         5. Always remind the user this is educational and NOT financial advice.
         6. Do not encourage real trading actions.
+        7. Do not tell the user exactly what to buy or sell.
 
         Respond directly to the user.
         """
     )
 
     # =========================
-    # Call Ollama API
+    # 3) Call Ollama API
     # =========================
     response = requests.post(
         OLLAMA_URL,
@@ -134,12 +202,18 @@ def chat_with_advisor(
         },
         timeout=120,
     )
-
     response.raise_for_status()
     data = response.json()
 
-    # Ollama returns text in the "response" field
-    return data.get("response", "").strip()
+    raw_text = data.get("response", "").strip()
+
+    # 4) Output filtering
+    return filter_llm_response(raw_text)
+
+
+# ======================================
+# Conversation summarisation
+# ======================================
 
 def summarize_conversation(
     ticker: str,
@@ -193,4 +267,3 @@ def summarize_conversation(
     response.raise_for_status()
     data = response.json()
     return data.get("response", "").strip()
-
