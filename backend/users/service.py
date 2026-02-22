@@ -100,6 +100,43 @@ def change_password(user_id: int, old_password: str, new_password: str) -> None:
     finally:
         db.close()
 
+def reset_password(email: str, new_password: str) -> None:
+    """
+    Reset the password for the user with the given email.
+
+    This is used by the 'Forgot password' flow in the UI.
+    It does NOT send emails or tokens – it simply:
+      - looks up the user by email
+      - sets a new hashed password
+      - raises ValueError if the email is not found
+    """
+    # Keep behaviour consistent with create_user / authenticate_user:
+    # they don't lowercase, so we only strip whitespace here.
+    normalized_email = email.strip()
+
+    db = get_db()
+    try:
+        user: Optional[User] = (
+            db.query(User)
+            .filter(User.email == normalized_email)
+            .first()
+        )
+
+        if user is None:
+            # This gets shown in Streamlit as an error message
+            raise ValueError("No account found for that email address.")
+
+        # Basic password policy – mirror change_password at least on length
+        if len(new_password) < 8:
+            raise ValueError("New password must be at least 8 characters long.")
+
+        # Hash the new password and save it
+        user.password = bcrypt.hash(new_password)  # <- same column & hashing as elsewhere
+        db.add(user)
+        db.commit()
+    finally:
+        db.close()
+
 
 # -------- Portfolio helpers -------- #
 
