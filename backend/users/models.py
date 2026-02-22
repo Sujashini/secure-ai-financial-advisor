@@ -8,6 +8,7 @@ from sqlalchemy import (
     Float,
     DateTime,
     ForeignKey,
+    Boolean,
     create_engine,
 )
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
@@ -35,6 +36,9 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     username = Column(String, unique=True, index=True, nullable=False)
     password = Column(String, nullable=False)  # simple for prototype
+    failed_attempts = Column(Integer, default=0, nullable=False)
+    is_locked = Column(Boolean, default=False, nullable=False)
+
 
     positions = relationship("PortfolioPosition", back_populates="user")
 

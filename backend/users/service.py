@@ -11,6 +11,10 @@ from backend.users.models import (
     PortfolioPosition,
 )
 
+class AccountLockedError(Exception):
+    """Raised when trying to log in to a locked account."""
+    pass
+
 # -------- Session helper -------- #
 
 def get_db() -> Session:
@@ -50,30 +54,53 @@ def create_user(email: str, username: str, password: str) -> User:
     finally:
         db.close()
 
+MAX_FAILED_LOGIN_ATTEMPTS = 5  # keep whatever value you chose
+
 
 def authenticate_user(email: str, password: str) -> Optional[User]:
     """
     Return the user if email + password are correct, otherwise None.
+    Raises AccountLockedError if the account is locked.
     """
     db = get_db()
     try:
         user = db.query(User).filter(User.email == email).first()
         if not user:
+            # No such email – don't reveal this to the caller
             return None
+
+        # If the account is already locked, don't even check the password
+        if getattr(user, "is_locked", False):
+            raise AccountLockedError(
+                "This account has been locked due to too many failed login attempts."
+            )
 
         # 🔐 Check hash instead of plain-text comparison
         try:
             if bcrypt.verify(password, user.password):
+                # Successful login -> reset failed attempts counter
+                user.failed_attempts = 0
+                db.commit()
+                # 👇 IMPORTANT: refresh so attributes are loaded even after session closes
+                db.refresh(user)
                 return user
         except ValueError:
-            # hash is invalid / corrupted
+            # Hash is invalid / corrupted
             return None
 
+        # ---- If we reach here, password was wrong ----
+        current_failed = getattr(user, "failed_attempts", 0) or 0
+        current_failed += 1
+        user.failed_attempts = current_failed
+
+        if current_failed >= MAX_FAILED_LOGIN_ATTEMPTS:
+            user.is_locked = True
+
+        db.commit()
         return None
     finally:
         db.close()
-
-
+        
 def change_password(user_id: int, old_password: str, new_password: str) -> None:
     """
     Change a user's password after verifying the current password.
@@ -132,6 +159,8 @@ def reset_password(email: str, new_password: str) -> None:
 
         # Hash the new password and save it
         user.password = bcrypt.hash(new_password)  # <- same column & hashing as elsewhere
+        user.failed_attempts = 0
+        user.is_locked = False
         db.add(user)
         db.commit()
     finally:

@@ -16,7 +16,7 @@ from backend.data.features import add_technical_indicators
 from backend.RL.trading_env import TradingEnv
 from backend.RL.dqn_agent import DQNAgent
 from backend.XAI.explainer import SurrogateExplainer
-from backend.users.service import authenticate_user, create_user, get_portfolio, change_password, reset_password
+from backend.users.service import authenticate_user, create_user, get_portfolio, change_password, reset_password, AccountLockedError
 from backend.Evaluation.backtest import backtest_ticker
 from backend.LLM.ollama_chat import chat_with_advisor, summarize_conversation
 from backend.LLM.chat_store import (
@@ -583,13 +583,17 @@ def show_auth_page():
                 if not email or not password:
                     st.error("Please enter both email and password.")
                 else:
-                    user = authenticate_user(email=email, password=password)
-                    if user:
-                        st.session_state["user"] = user
-                        st.success(f"Welcome back, {user.username}!")
-                        st.rerun()
-                    else:
-                        st.error("Invalid email or password.")
+                    try:
+                        user = authenticate_user(email=email, password=password)
+                        if user:
+                            st.session_state["user"] = user
+                            st.success(f"Welcome back, {user.username}!")
+                            st.rerun()
+                        else:
+                            st.error("Invalid email or password.")
+                    except AccountLockedError as e:
+                        st.error("Your account has been locked due to too many failed login attempts. "
+                "Please use 'Forgot your password?' below to reset your password and unlock the account.")
 
             # ---------------- Forgot password ----------------
             with st.expander("Forgot your password?"):
