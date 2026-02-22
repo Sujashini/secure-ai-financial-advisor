@@ -9,13 +9,14 @@ if PROJECT_ROOT not in sys.path:
     sys.path.append(PROJECT_ROOT)
 import streamlit as st
 import pandas as pd
+import re
 
 from backend.data.market_data import fetch_stock_data
 from backend.data.features import add_technical_indicators
 from backend.RL.trading_env import TradingEnv
 from backend.RL.dqn_agent import DQNAgent
 from backend.XAI.explainer import SurrogateExplainer
-from backend.users.service import authenticate_user, create_user, get_portfolio, change_password
+from backend.users.service import authenticate_user, create_user, get_portfolio, change_password, reset_password
 from backend.Evaluation.backtest import backtest_ticker
 from backend.LLM.ollama_chat import chat_with_advisor, summarize_conversation
 from backend.LLM.chat_store import (
@@ -38,6 +39,51 @@ COMPANY_NAMES = {
     "GOOGL": "Alphabet, Inc",
 }
 
+def evaluate_password_strength(password: str):
+    """
+    Very simple password strength check.
+    Returns (label, score_0_to_1, help_text).
+    This is for UX only – actual security is from hashing (bcrypt) in the backend.
+    """
+    if not password:
+        return "Too short", 0.0, "Enter a password to see the strength."
+
+    length = len(password)
+    score = 0
+
+    # Length
+    if length >= 8:
+        score += 1
+    if length >= 12:
+        score += 1
+
+    # Character classes
+    if re.search(r"[a-z]", password):
+        score += 1
+    if re.search(r"[A-Z]", password):
+        score += 1
+    if re.search(r"\d", password):
+        score += 1
+    if re.search(r"[^\w\s]", password):  # special characters
+        score += 1
+
+    max_score = 6
+    norm = score / max_score
+
+    if length < 8:
+        label = "Too short"
+        help_text = "Use at least 8 characters."
+    elif norm < 0.4:
+        label = "Weak"
+        help_text = "Add upper/lowercase letters, numbers and a symbol."
+    elif norm < 0.75:
+        label = "Medium"
+        help_text = "Pretty good – you can make it even stronger with more variety."
+    else:
+        label = "Strong"
+        help_text = "This looks like a strong password."
+
+    return label, norm, help_text
 
 def generate_plain_english_explanation(
     ticker: str,
@@ -511,15 +557,18 @@ def build_portfolio_performance_chart(portfolio, freq_code: str = "M"):
 def show_auth_page():
     """Render a standalone login / sign-up page and handle auth logic."""
 
+    # Give the page a bit of vertical breathing room
+    st.empty()
     st.markdown("## 👋 Welcome to the Secure Explainable AI Financial Advisor Bot")
     st.caption(
         "Create an account to save your portfolio and see a personalised dashboard. "
-        "This app is for educational purposes only and not financial advice."
+        "This app is for educational purposes only and is **not** financial advice."
     )
 
     # Center the auth card
     left_spacer, center_col, right_spacer = st.columns([1, 2, 1])
     with center_col:
+
         login_tab, signup_tab = st.tabs(["Log in", "Create account"])
 
         # ---------- LOGIN TAB ----------
@@ -531,13 +580,53 @@ def show_auth_page():
                 submitted = st.form_submit_button("Log in")
 
             if submitted:
-                user = authenticate_user(email=email, password=password)
-                if user:
-                    st.session_state["user"] = user
-                    st.success(f"Welcome back, {user.username}!")
-                    st.rerun()
+                if not email or not password:
+                    st.error("Please enter both email and password.")
                 else:
-                    st.error("Invalid email or password.")
+                    user = authenticate_user(email=email, password=password)
+                    if user:
+                        st.session_state["user"] = user
+                        st.success(f"Welcome back, {user.username}!")
+                        st.rerun()
+                    else:
+                        st.error("Invalid email or password.")
+
+            # ---------------- Forgot password ----------------
+            with st.expander("Forgot your password?"):
+                with st.form("forgot_pw_form"):
+                    fp_email = st.text_input("Registered email", key="fp_email")
+                    fp_new1 = st.text_input("New password", type="password", key="fp_new1")
+                    fp_new2 = st.text_input("Confirm new password", type="password", key="fp_new2")
+
+                    # Show strength for new password
+                    fp_label, fp_score, fp_help = evaluate_password_strength(fp_new1)
+                    st.markdown(
+                        f"<small>Strength: <b>{fp_label}</b> – {fp_help}</small>",
+                        unsafe_allow_html=True,
+                    )
+
+                    fp_submit = st.form_submit_button("Reset password")
+
+                if fp_submit:
+                    if not fp_email or not fp_new1 or not fp_new2:
+                        st.error("Please fill in all the fields.")
+                    elif fp_new1 != fp_new2:
+                        st.error("New passwords do not match.")
+                    elif len(fp_new1) < 8:
+                        st.error("New password must be at least 8 characters long.")
+                    elif fp_label in ("Too short", "Weak"):
+                        st.error("New password is too weak. Please choose a stronger one.")
+                    else:
+                        try:
+                            reset_password(fp_email.strip(), fp_new1)
+                            st.success(
+                                "Password reset successfully. You can now log in with your new password."
+                            )
+                        except ValueError as e:
+                            # e.g. email not found
+                            st.error(str(e))
+                        except Exception:
+                            st.error("Something went wrong while resetting your password.")
 
         # ---------- SIGN-UP TAB ----------
         with signup_tab:
@@ -545,22 +634,35 @@ def show_auth_page():
             with st.form("signup_form"):
                 email = st.text_input("Email", key="signup_email")
                 username = st.text_input("Username", key="signup_username")
-                password = st.text_input("Password", type="password", key="signup_password")
+                password = st.text_input(
+                    "Password", type="password", key="signup_password"
+                )
+                # --- Password strength indicator ---
+                strength_label, strength_score, strength_help = evaluate_password_strength(password)
+                # simple text indicator (you could add a progress bar too)
+                st.markdown(
+                    f"<small>Strength: <b>{strength_label}</b> – {strength_help}</small>",
+                    unsafe_allow_html=True,
+                )
                 confirm = st.text_input(
                     "Confirm password", type="password", key="signup_confirm"
                 )
                 submitted = st.form_submit_button("Create account")
 
             if submitted:
-                if password != confirm:
-                    st.error("Passwords do not match.")
-                elif not email or not username or not password:
+                if not email or not username or not password or not confirm:
                     st.error("Please fill in all fields.")
+                elif password != confirm:
+                    st.error("Passwords do not match.")
+                elif len(password) < 8:
+                    st.error("Password must be at least 8 characters long.")
+                elif strength_label in ("Too short", "Weak"):
+                    st.error("Password is too weak. Please use a stronger password.")
                 else:
                     try:
                         user = create_user(
-                            email=email,
-                            username=username,
+                            email=email.strip(),
+                            username=username.strip(),
                             password=password,
                         )
                         st.session_state["user"] = user
@@ -569,7 +671,10 @@ def show_auth_page():
                     except ValueError as e:
                         # e.g. "Email already registered"
                         st.error(str(e))
+                    except Exception:
+                        st.error("Something went wrong while creating your account.")
 
+        st.markdown("</div>", unsafe_allow_html=True)
 
 
 # --- Streamlit page config --- #
