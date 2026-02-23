@@ -2,6 +2,7 @@ import os
 import sys
 import altair as alt
 from functools import reduce
+from datetime import datetime
 
 # --- Make sure we can import from project root (backend package) --- #
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -17,7 +18,7 @@ from backend.data.features import add_technical_indicators
 from backend.RL.trading_env import TradingEnv
 from backend.RL.dqn_agent import DQNAgent
 from backend.XAI.explainer import SurrogateExplainer
-from backend.users.service import authenticate_user, create_user, get_portfolio, change_password, reset_password, AccountLockedError, get_user_by_id
+from backend.users.service import authenticate_user, create_user, get_portfolio, change_password, reset_password, AccountLockedError, get_user_by_id, buy_shares, sell_shares
 from backend.Evaluation.backtest import backtest_ticker
 from backend.LLM.ollama_chat import chat_with_advisor, summarize_conversation
 from backend.LLM.chat_store import (
@@ -109,6 +110,13 @@ def evaluate_password_strength(password: str):
         help_text = "This looks like a strong password."
 
     return label, norm, help_text
+
+def is_valid_email(email: str) -> bool:
+    """Very simple email pattern check for nicer error messages."""
+    if not email:
+        return False
+    # This is intentionally simple – just avoids obvious typos.
+    return bool(re.match(r"[^@]+@[^@]+\.[^@]+", email))
 
 def generate_plain_english_explanation(
     ticker: str,
@@ -606,8 +614,11 @@ def show_auth_page():
                 submitted = st.form_submit_button("Log in")
 
             if submitted:
-                if not email or not password:
+                clean_email = email.strip()
+                if not clean_email or not password:
                     st.error("Please enter both email and password.")
+                elif not is_valid_email(clean_email):
+                    st.error("Please enter a valid email address (e.g. name@example.com).")
                 else:
                     try:
                         user = authenticate_user(email=email, password=password)
@@ -617,10 +628,10 @@ def show_auth_page():
                             st.success(f"Welcome back, {user.username}!")
                             st.rerun()
                         else:
-                            st.error("Invalid email or password.")
+                            st.error("We could not sign you in. Check your email and password and try again.")
                     except AccountLockedError as e:
                         st.error("Your account has been locked due to too many failed login attempts. "
-                "Please use 'Forgot your password?' below to reset your password and unlock the account.")
+                "Please use **'Forgot your password?'** below to reset your password and unlock the account.")
 
             # ---------------- Forgot password ----------------
             with st.expander("Forgot your password?"):
@@ -639,7 +650,9 @@ def show_auth_page():
                     fp_submit = st.form_submit_button("Reset password")
 
                 if fp_submit:
-                    if not fp_email or not fp_new1 or not fp_new2:
+                    clean_fp_email = fp_email.strip()
+
+                    if not clean_fp_email or not fp_new1 or not fp_new2:
                         st.error("Please fill in all the fields.")
                     elif fp_new1 != fp_new2:
                         st.error("New passwords do not match.")
@@ -649,15 +662,15 @@ def show_auth_page():
                         st.error("New password is too weak. Please choose a stronger one.")
                     else:
                         try:
-                            reset_password(fp_email.strip(), fp_new1)
+                            reset_password(clean_fp_email.strip(), fp_new1)
                             st.success(
-                                "Password reset successfully. You can now log in with your new password."
+                                "Your password has been reset successfully. You can now log in with your new password."
                             )
                         except ValueError as e:
                             # e.g. email not found
                             st.error(str(e))
                         except Exception:
-                            st.error("Something went wrong while resetting your password.")
+                            st.error("Something went wrong while resetting your password. Please try again.")
 
         # ---------- SIGN-UP TAB ----------
         with signup_tab:
@@ -680,9 +693,14 @@ def show_auth_page():
                 )
                 submitted = st.form_submit_button("Signup")
 
-            if submitted:
-                if not email or not username or not password or not confirm:
+            if submitted:   
+                clean_email = email.strip()
+                clean_username = username.strip()
+
+                if not clean_email or not clean_username or not password or not confirm:
                     st.error("Please fill in all fields.")
+                elif not is_valid_email(clean_email):
+                    st.error("Please enter a valid email address (e.g. name@example.com).")
                 elif password != confirm:
                     st.error("Passwords do not match.")
                 elif len(password) < 8:
@@ -692,8 +710,8 @@ def show_auth_page():
                 else:
                     try:
                         user = create_user(
-                            email=email.strip(),
-                            username=username.strip(),
+                            email=clean_email.strip(),
+                            username=clean_username.strip(),
                             password=password,
                         )
                         st.session_state["user"] = user
@@ -703,7 +721,7 @@ def show_auth_page():
                         # e.g. "Email already registered"
                         st.error(str(e))
                     except Exception:
-                        st.error("Something went wrong while creating your account.")
+                        st.error("Something went wrong while creating your account. Please try again.")
 
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -714,6 +732,9 @@ st.set_page_config(page_title="AI Financial Advisor", layout="wide")
 ## --- Session state for user --- #
 if "user" not in st.session_state:
     st.session_state["user"] = None
+
+if "trade_history" not in st.session_state:
+    st.session_state["trade_history"] = []
 
     # Try auto-login via remember-me file (only when session starts empty)
     if os.path.exists(REMEMBER_ME_PATH):
@@ -814,6 +835,91 @@ if user:
     with tab_rec:
         st.metric("Recommended Action", f"{action_text} ({ticker})")
 
+        st.markdown("### 🛠 Act on this recommendation")
+
+        portfolio = get_portfolio(user.id)
+
+        current_price, _ = get_latest_price_and_change(ticker)
+
+        if action_text == "BUY":
+            shares_to_buy = st.number_input(
+                "Number of shares to buy",
+                min_value=1.0,
+                step=1.0,
+                key="buy_shares_input",
+            )
+
+            if st.button("✅ Buy shares", key="buy_btn"):
+                try:
+                    buy_shares(
+                        user_id=user.id,
+                        ticker=ticker,
+                        shares=shares_to_buy,
+                        price=current_price,
+                    )
+                    # 🔹 Log trade in session history
+                    st.session_state["trade_history"].append(
+                        {
+                            "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            "ticker": ticker,
+                            "action": "BUY",
+                            "shares": float(shares_to_buy),
+                            "price": float(current_price),
+                        }
+                    )
+                    st.success(f"Bought {shares_to_buy} shares of {ticker}.")
+                    st.rerun()
+                except Exception as e:
+                    st.error("Could not complete purchase.")
+                    st.caption(str(e))
+
+        elif action_text == "SELL":
+            # Check how many shares user owns
+            owned_position = next(
+                (p for p in portfolio if p.ticker == ticker), None
+            )
+
+            if owned_position:
+                max_shares = float(owned_position.shares)
+
+                shares_to_sell = st.number_input(
+                    "Number of shares to sell",
+                    min_value=1.0,
+                    max_value=max_shares,
+                    step=1.0,
+                    key="sell_shares_input",
+                )
+
+                if st.button("🔻 Sell shares", key="sell_btn"):
+                    try:
+                        sell_shares(
+                            user_id=user.id,
+                            ticker=ticker,
+                            shares=shares_to_sell,
+                            price=current_price,
+                        )
+                        st.session_state["trade_history"].append(
+                            {
+                                "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                "ticker": ticker,
+                                "action": "SELL",
+                                "shares": float(shares_to_sell),
+                                "price": float(current_price),
+                            }
+                        )
+                        st.success(f"Sold {shares_to_sell} shares of {ticker}.")
+                        st.rerun()
+                    except ValueError as e:
+                        st.error(str(e))
+                    except Exception as e:
+                        st.error("Could not complete sale.")
+                        st.caption(str(e))
+            else:
+                st.info("You do not currently own this stock.")
+
+        else:
+            st.info("The AI suggests holding. No action required.")
+
         data["date"] = pd.to_datetime(data["date"])
         latest_date = data["date"].iloc[-1]
         st.caption(
@@ -877,6 +983,39 @@ if user:
 </div>
 """
                         st.markdown(card_html, unsafe_allow_html=True)
+                        # 🔻 Close position button
+                        if st.button(
+                            "Close position",
+                            key=f"close_{t}",
+                            help="Sell all shares of this stock at the latest available price (simulated).",
+                        ):
+                            try:
+                                # Sell all shares
+                                sell_shares(
+                                    user_id=user.id,
+                                    ticker=t,
+                                    shares=float(pos.shares),
+                                    price=price if price is not None else pos.avg_price,
+                                )
+
+                                # Log trade
+                                st.session_state["trade_history"].append(
+                                    {
+                                        "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                        "ticker": t,
+                                        "action": "SELL_ALL",
+                                        "shares": float(pos.shares),
+                                        "price": float(price) if price is not None else float(pos.avg_price),
+                                    }
+                                )
+
+                                st.success(f"Closed position in {t}.")
+                                st.rerun()
+                            except ValueError as e:
+                                st.error(str(e))
+                            except Exception as e:
+                                st.error("Could not close this position.")
+                                st.caption(str(e))
             else:
                 st.info("You don't have any holdings yet.")
 
@@ -1518,7 +1657,7 @@ It does **not** predict the future and is **not financial advice**.
                 except ValueError as e:
                     st.error(str(e))
                 except Exception:
-                    st.error("Something went wrong while updating your password.")
+                    st.error("Something went wrong while updating your password. Please try again.")
                
 
     # ----------------------

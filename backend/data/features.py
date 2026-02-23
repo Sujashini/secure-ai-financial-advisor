@@ -23,28 +23,49 @@ def add_technical_indicators(df: pd.DataFrame) -> pd.DataFrame:
     """
     df = df.copy()
 
+    # -------------------------
+    # Ensure 'close' is a clean Series
+    # -------------------------
+    close_col = df["close"]
+
+    if isinstance(close_col, pd.DataFrame):
+        # If multi-column (e.g. from yfinance), take the first column
+        close_col = close_col.iloc[:, 0]
+
+    # Force it to be a Series and overwrite
+    df["close"] = close_col.astype(float)
+
+    # -------------------------
     # Returns
+    # -------------------------
     df["return_1"] = df["close"].pct_change()
 
+    # -------------------------
     # Moving averages
+    # -------------------------
     df["sma_10"] = df["close"].rolling(window=10).mean()
     df["sma_20"] = df["close"].rolling(window=20).mean()
 
     df["ema_10"] = df["close"].ewm(span=10, adjust=False).mean()
     df["ema_20"] = df["close"].ewm(span=20, adjust=False).mean()
 
-    # Volatility (rolling std of returns)
+    # -------------------------
+    # Volatility
+    # -------------------------
     df["volatility_10"] = df["return_1"].rolling(window=10).std()
 
+    # -------------------------
     # RSI
+    # -------------------------
     df["rsi_14"] = compute_rsi(df["close"], window=14)
 
-    # Drop rows with NaNs caused by rolling windows
+    # -------------------------
+    # Clean NaNs
+    # -------------------------
     df = df.dropna().reset_index(drop=True)
 
     assert df["rsi_14"].between(0, 100).all(), "RSI out of bounds"
     assert df["volatility_10"].ge(0).all(), "Negative volatility detected"
-
 
     return df
 
