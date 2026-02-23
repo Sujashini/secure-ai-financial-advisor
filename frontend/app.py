@@ -208,6 +208,136 @@ def generate_plain_english_explanation(
 
     return summary
 
+def compute_signal_strength_and_confidence(explanation: dict):
+    """
+    Heuristic 'confidence' score based on how strong the explanation values are.
+    Returns (label, percentage, subtitle).
+    """
+    abs_vals = []
+
+    for item in explanation.get("top_positive", []):
+        abs_vals.append(abs(float(item["value"])))
+    for item in explanation.get("top_negative", []):
+        abs_vals.append(abs(float(item["value"])))
+
+    if not abs_vals:
+        return "Unclear", 0, "Signals are weak or mixed."
+
+    raw_strength = sum(abs_vals)
+
+    # Normalise to 0–100; the constant is just a heuristic scaling factor.
+    max_reasonable_strength = 0.1
+    confidence_pct = min(raw_strength / max_reasonable_strength * 100.0, 100.0)
+
+    if confidence_pct < 33:
+        label = "Low"
+        subtitle = "Signals are present but weak or conflicting."
+    elif confidence_pct < 66:
+        label = "Medium"
+        subtitle = "Signals are moderate; there is some uncertainty."
+    else:
+        label = "High"
+        subtitle = "Signals are strong and consistent with past patterns."
+
+    return label, round(confidence_pct), subtitle
+
+def classify_risk_level(data: pd.DataFrame):
+    """
+    Classify risk level based on recent price volatility.
+    Returns (label, explanation).
+    """
+    if "volatility_10" not in data.columns or data["volatility_10"].dropna().empty:
+        return "Unknown", "Not enough data to estimate risk."
+
+    recent_vol = float(data["volatility_10"].dropna().iloc[-1])
+
+    # Thresholds are heuristic, tuned for daily stock data.
+    if recent_vol < 0.015:
+        return "Low", "Price has been relatively stable in recent history."
+    elif recent_vol < 0.035:
+        return "Medium", "Price moves up and down moderately."
+    else:
+        return "High", "Price has been quite jumpy; expect larger swings."
+    
+def build_allocation_chart(portfolio):
+    """
+    Build a pie chart showing percentage allocation per ticker
+    using latest prices.
+    """
+    if not portfolio:
+        return None
+
+    rows = []
+    for pos in portfolio:
+        try:
+            price, _ = get_latest_price_and_change(pos.ticker)
+            if price is None:
+                continue
+            value = float(price) * float(pos.shares)
+            rows.append({"Ticker": pos.ticker, "Value": value})
+        except Exception:
+            continue
+
+    if not rows:
+        return None
+
+    df = pd.DataFrame(rows)
+    total = df["Value"].sum()
+    df["Share"] = df["Value"] / total
+
+    chart = (
+        alt.Chart(df)
+        .mark_arc()
+        .encode(
+            theta=alt.Theta("Value:Q", stack=True),
+            color=alt.Color("Ticker:N", legend=alt.Legend(title="Ticker")),
+            tooltip=[
+                alt.Tooltip("Ticker:N"),
+                alt.Tooltip("Value:Q", format=",.2f", title="Value ($)"),
+                alt.Tooltip("Share:Q", format=".1%", title="Portfolio share"),
+            ],
+        )
+        .properties(height=260)
+    )
+    return chart
+
+def compute_risk_metrics_for_ticker(ticker: str):
+    """
+    Run the historical backtest for this ticker and compute a small set of
+    risk/return metrics for the AI strategy.
+    Returns (metrics_dict, error_message_or_None).
+    """
+    try:
+        equity_df, metrics = backtest_ticker(
+            ticker=ticker,
+            model_path=os.path.join("models", f"dqn_{ticker}.pth"),
+            initial_cash=100_000.0,
+        )
+    except Exception as e:
+        return None, str(e)
+
+    equity_df = add_drawdowns(equity_df)
+
+    # Daily returns of the AI strategy
+    returns = equity_df["equity_ai"].pct_change().dropna()
+    if returns.empty:
+        sharpe = None
+    else:
+        mean_daily = returns.mean()
+        std_daily = returns.std()
+        if std_daily == 0:
+            sharpe = None
+        else:
+            # Approx annualised Sharpe with 252 trading days
+            sharpe = (mean_daily / std_daily) * (252**0.5)
+
+    result = {
+        "final_value": metrics["final_ai"],
+        "total_return": metrics["return_ai"],           # fraction
+        "max_drawdown": metrics["max_drawdown_ai"],     # fraction
+        "sharpe": sharpe,
+    }
+    return result, None
 
 def get_latest_price_and_change(ticker: str):
     """
@@ -825,8 +955,12 @@ if user:
     action_map = {0: "HOLD", 1: "BUY", 2: "SELL"}
     action_text = action_map[action]
 
-    tab_rec, tab_expl, tab_eval, tab_chat, tab_profile, tab_help = st.tabs(
-        ["Dashboard", "Explanation", "Evaluation", "Chat with Advisor", "Profile / Settings", "Help / Glossary"]
+    # 🔹 New: compute explanation once here
+    explainer = load_explainer(ticker)
+    _, explanation = explainer.explain_state(state)
+
+    tab_rec, tab_expl, tab_chat, tab_profile, tab_help = st.tabs(
+        ["Dashboard", "Explanation", "Chat with Advisor", "Profile / Settings", "Help / Glossary"]
     )
 
     # ----------------------
@@ -834,6 +968,47 @@ if user:
     # ----------------------
     with tab_rec:
         st.metric("Recommended Action", f"{action_text} ({ticker})")
+
+        # ---- AI signal & risk summary row ----
+        sig_col, risk_col = st.columns(2)
+
+        # Model confidence
+        with sig_col:
+            conf_label, conf_pct, conf_subtitle = compute_signal_strength_and_confidence(explanation)
+            st.markdown("#### 🤖 AI signal strength")
+            st.metric("Confidence", f"{conf_pct}%", conf_label)
+            st.caption(conf_subtitle)
+
+        # Risk level
+        with risk_col:
+            risk_label, risk_text = classify_risk_level(data)
+            st.markdown("#### ⚠️ Risk level (this stock)")
+            st.metric("Risk", risk_label)
+            st.caption(risk_text)
+
+        # Optional: short "Why this recommendation?" teaser on dashboard
+        with st.expander("Why this suggestion? (key factors)", expanded=False):
+            pos = explanation.get("top_positive", [])
+            neg = explanation.get("top_negative", [])
+
+            st.markdown("**Main positive signals**")
+            if pos:
+                for item in pos:
+                    st.write(f"- {item['feature']} (pushed towards this action)")
+            else:
+                st.write("_No strong positive signals identified._")
+
+            st.markdown("**Main caution signals**")
+            if neg:
+                for item in neg:
+                    st.write(f"- {item['feature']} (pushed against this action)")
+            else:
+                st.write("_No strong caution signals identified._")
+
+            st.caption(
+                "These are the main data points the AI looked at. "
+                "Technical details (like SHAP values) are documented in the project report."
+            )
 
         st.markdown("### 🛠 Act on this recommendation")
 
@@ -1072,6 +1247,49 @@ if user:
                 )
             else:
                 st.info("No holdings yet, so the account summary is empty.")
+        
+        alloc_col, riskmetrics_col = st.columns([1, 1])
+
+        with alloc_col:
+            st.markdown("### 🧩 Portfolio allocation")
+            alloc_chart = build_allocation_chart(portfolio)
+            if alloc_chart is not None and portfolio:
+                st.altair_chart(alloc_chart, use_container_width=True)
+            elif not portfolio:
+                st.info("Add some holdings to see your portfolio allocation.")
+            else:
+                st.info("Could not compute allocation chart.")
+
+        with riskmetrics_col:
+            st.markdown("### 📊 Historical risk & return (AI strategy)")
+            metrics, err = compute_risk_metrics_for_ticker(ticker)
+            if err or metrics is None:
+                st.info("Historical risk metrics are not available right now.")
+            else:
+                total_return_pct = metrics["total_return"] * 100.0
+                max_dd_pct = metrics["max_drawdown"] * 100.0
+                sharpe = metrics["sharpe"]
+
+                st.metric("Total return (backtest)", f"{total_return_pct:.1f}%")
+                st.metric(
+                    "Worst historical drop",
+                    f"{max_dd_pct:.1f}%",
+                )
+
+                if sharpe is not None:
+                    st.metric(
+                        "Risk/return score",
+                        f"{sharpe:.2f}",
+                    )
+                    st.caption(
+                        "Higher is generally better: this score balances historical returns "
+                        "against how bumpy the journey was. "
+                        "It is based on the Sharpe ratio, explained in the report."
+                    )
+                else:
+                    st.caption(
+                        "Risk/return score is not available (insufficient variation in backtest returns)."
+                    )
         # ==========================
         # ROW 2 – MAIN CHARTS
         # ==========================
@@ -1142,6 +1360,7 @@ if user:
                         st.info("Trend indicators are not available for this stock.")
                 else:
                     st.info("Select at least one indicator to display.")
+
 
         # ==========================
         # ROW 3 – TABLE + MARKET OVERVIEW
@@ -1418,74 +1637,6 @@ if user:
             explanation=explanation,
         )
         st.write(plain_text)
-
-    # ----------------------
-    # EVALUATION TAB
-    # ----------------------
-    with tab_eval:
-        st.subheader("📜 How this was tested")
-
-        st.markdown(
-            """
-This system was tested using **historical price data** for the selected stock.
-
-The chart below shows what would have happened **in the past** if:
-
-- The AI system’s decisions were followed (**AI strategy**), and  
-- Someone simply bought the stock once and held it (**Buy & hold**).
-
-This is for **transparency only**.  
-It does **not** predict the future and is **not financial advice**.
-"""
-        )
-
-        with st.spinner("Running historical simulation..."):
-            equity_df, metrics = backtest_ticker(
-                ticker=ticker,
-                model_path=os.path.join("models", f"dqn_{ticker}.pth"),
-                initial_cash=100_000.0,
-            )
-
-        equity_df = add_drawdowns(equity_df)
-
-        st.markdown("### 💵 Equity over time")
-        st.caption(
-            "This chart shows how the portfolio value would have changed over time "
-            "for the AI strategy vs simply buying and holding the stock."
-        )
-
-        equity_chart = build_equity_chart(equity_df)
-        st.altair_chart(equity_chart, use_container_width=True)
-
-        st.markdown("### 📊 Summary metrics")
-
-        metrics_table = pd.DataFrame(
-            [
-                {
-                    "Strategy": "AI strategy",
-                    "Final value ($)": f"{metrics['final_ai']:.0f}",
-                    "Total return (%)": f"{metrics['return_ai'] * 100:.2f}",
-                    "Max drawdown (%)": f"{metrics['max_drawdown_ai'] * 100:.2f}",
-                },
-                {
-                    "Strategy": "Buy & hold",
-                    "Final value ($)": f"{metrics['final_bh']:.0f}",
-                    "Total return (%)": f"{metrics['return_bh'] * 100:.2f}",
-                    "Max drawdown (%)": f"{metrics['max_drawdown_bh'] * 100:.2f}",
-                },
-            ]
-        )
-
-        st.table(metrics_table)
-
-        st.markdown("### 📉 Drawdowns over time")
-        st.caption(
-            "This chart shows how far each strategy fell from its previous peak value. "
-            "Larger negative values mean deeper historical losses."
-        )
-
-        dd_chart = build_drawdown_chart(equity_df)
-        st.altair_chart(dd_chart, use_container_width=True)
 
     # ----------------------
     # CHAT TAB
