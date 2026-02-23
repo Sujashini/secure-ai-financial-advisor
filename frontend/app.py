@@ -10,13 +10,14 @@ if PROJECT_ROOT not in sys.path:
 import streamlit as st
 import pandas as pd
 import re
+import json
 
 from backend.data.market_data import fetch_stock_data
 from backend.data.features import add_technical_indicators
 from backend.RL.trading_env import TradingEnv
 from backend.RL.dqn_agent import DQNAgent
 from backend.XAI.explainer import SurrogateExplainer
-from backend.users.service import authenticate_user, create_user, get_portfolio, change_password, reset_password, AccountLockedError
+from backend.users.service import authenticate_user, create_user, get_portfolio, change_password, reset_password, AccountLockedError, get_user_by_id
 from backend.Evaluation.backtest import backtest_ticker
 from backend.LLM.ollama_chat import chat_with_advisor, summarize_conversation
 from backend.LLM.chat_store import (
@@ -38,6 +39,30 @@ COMPANY_NAMES = {
     "TSLA": "Tesla, Inc",
     "GOOGL": "Alphabet, Inc",
 }
+
+REMEMBER_ME_PATH = os.path.join(os.path.dirname(__file__), "remember_me.json")
+
+
+def save_remember_me(user_id: int, remember: bool) -> None:
+    """
+    Persist or clear the 'remember me' state on disk.
+    This is a simple local-file mechanism appropriate for a single-user FYP prototype.
+    """
+    if remember:
+        data = {"remember": True, "user_id": user_id}
+        try:
+            with open(REMEMBER_ME_PATH, "w", encoding="utf-8") as f:
+                json.dump(data, f)
+        except Exception:
+            # Fail quietly – 'remember me' is convenience only
+            pass
+    else:
+        # Clear file if it exists
+        try:
+            if os.path.exists(REMEMBER_ME_PATH):
+                os.remove(REMEMBER_ME_PATH)
+        except Exception:
+            pass
 
 def evaluate_password_strength(password: str):
     """
@@ -569,7 +594,7 @@ def show_auth_page():
     left_spacer, center_col, right_spacer = st.columns([1, 2, 1])
     with center_col:
 
-        login_tab, signup_tab = st.tabs(["Log in", "Create account"])
+        login_tab, signup_tab = st.tabs(["Log in", "Sign Up"])
 
         # ---------- LOGIN TAB ----------
         with login_tab:
@@ -577,6 +602,7 @@ def show_auth_page():
             with st.form("login_form"):
                 email = st.text_input("Email")
                 password = st.text_input("Password", type="password")
+                remember_me = st.checkbox("Remember Me", value=False)
                 submitted = st.form_submit_button("Log in")
 
             if submitted:
@@ -587,6 +613,7 @@ def show_auth_page():
                         user = authenticate_user(email=email, password=password)
                         if user:
                             st.session_state["user"] = user
+                            save_remember_me(user.id, remember_me)
                             st.success(f"Welcome back, {user.username}!")
                             st.rerun()
                         else:
@@ -651,7 +678,7 @@ def show_auth_page():
                 confirm = st.text_input(
                     "Confirm password", type="password", key="signup_confirm"
                 )
-                submitted = st.form_submit_button("Create account")
+                submitted = st.form_submit_button("Signup")
 
             if submitted:
                 if not email or not username or not password or not confirm:
@@ -688,6 +715,19 @@ st.set_page_config(page_title="AI Financial Advisor", layout="wide")
 if "user" not in st.session_state:
     st.session_state["user"] = None
 
+    # Try auto-login via remember-me file (only when session starts empty)
+    if os.path.exists(REMEMBER_ME_PATH):
+        try:
+            with open(REMEMBER_ME_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if data.get("remember") and data.get("user_id") is not None:
+                remembered_user = get_user_by_id(int(data["user_id"]))
+                if remembered_user:
+                    st.session_state["user"] = remembered_user
+        except Exception:
+            # If anything goes wrong, just ignore and fall back to normal login
+            pass
+
 user = st.session_state["user"]
 
 # =========================
@@ -707,6 +747,7 @@ with top_col3:
     if user:
         st.markdown(f"**👤 {user.username}**")
         if st.button("Logout", key="logout_button"):
+            save_remember_me(user.id, remember=False)
             st.session_state.clear()
             st.rerun()
     else:

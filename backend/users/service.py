@@ -56,6 +56,17 @@ def create_user(email: str, username: str, password: str) -> User:
 
 MAX_FAILED_LOGIN_ATTEMPTS = 5  # keep whatever value you chose
 
+def get_user_by_id(user_id: int) -> Optional[User]:
+    """
+    Load a user by primary key.
+    Used for 'remember me' auto-login.
+    """
+    db = get_db()
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        return user
+    finally:
+        db.close()
 
 def authenticate_user(email: str, password: str) -> Optional[User]:
     """
