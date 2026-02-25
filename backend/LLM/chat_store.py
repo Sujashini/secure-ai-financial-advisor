@@ -2,11 +2,12 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
-# Store DB inside backend folder
+# Store DB inside the same folder as this file
 DB_PATH = Path(__file__).resolve().parent / "chat_history.db"
 
 
 def get_connection():
+    """Create a new SQLite connection to the chat history database."""
     return sqlite3.connect(DB_PATH)
 
 
@@ -30,9 +31,20 @@ def init_chat_db():
         conn.commit()
 
 
-def save_message(user_id: int, ticker: str, role: str, content: str):
+def save_message(user_id: int, ticker: str, role: str, content: str) -> None:
     """
     Persist a single chat message.
+
+    Parameters
+    ----------
+    user_id : int
+        ID of the logged-in user.
+    ticker : str
+        Current stock ticker for this conversation.
+    role : str
+        'user' or 'assistant'.
+    content : str
+        Message text.
     """
     with get_connection() as conn:
         conn.execute(
@@ -51,17 +63,35 @@ def save_message(user_id: int, ticker: str, role: str, content: str):
         conn.commit()
 
 
-def load_chat_history(user_id: int, ticker: str | None = None, limit: int = 50):
+def load_chat_history(
+    user_id: int,
+    ticker: str | None = None,
+    limit: int = 50,
+) -> list[dict]:
     """
     Load recent chat messages for a user (optionally filtered by ticker).
-    Returns a list of dicts: [{role, content}, ...]
+
+    Parameters
+    ----------
+    user_id : int
+        The user ID whose messages we want.
+    ticker : str | None
+        If provided, only messages for this ticker are returned.
+        If None, messages for all tickers are returned.
+    limit : int
+        Maximum number of messages to return.
+
+    Returns
+    -------
+    list[dict]
+        A list of dicts like: [{"role": "user"/"assistant", "content": "..."}]
     """
     query = """
         SELECT role, content
         FROM chat_messages
         WHERE user_id = ?
     """
-    params = [user_id]
+    params: list = [user_id]
 
     if ticker:
         query += " AND ticker = ?"
@@ -75,14 +105,16 @@ def load_chat_history(user_id: int, ticker: str | None = None, limit: int = 50):
 
     return [{"role": r[0], "content": r[1]} for r in rows]
 
-def clear_chat_history(user_id: int, ticker: str | None = None):
+
+def clear_chat_history(user_id: int, ticker: str | None = None) -> None:
     """
     Delete chat messages for a user.
+
     If ticker is provided, only clear messages for that ticker.
     Otherwise, clear all messages for the user.
     """
     query = "DELETE FROM chat_messages WHERE user_id = ?"
-    params = [user_id]
+    params: list = [user_id]
 
     if ticker:
         query += " AND ticker = ?"

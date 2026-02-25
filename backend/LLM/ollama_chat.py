@@ -30,6 +30,8 @@ def sanitize_user_question(user_question: str) -> str:
         "guarantee profits",
         "tell me exactly what to buy",
         "tell me exactly what to sell",
+        "bypass the safety rules",
+        "pretend the safety rules do not apply",
     ]
 
     for phrase in banned_phrases:
@@ -57,6 +59,8 @@ def filter_llm_response(raw_response: str) -> str:
     banned_terms = [
         "you should buy",
         "you should sell",
+        "you must buy",
+        "you must sell",
         "definitely buy",
         "definitely sell",
         "this is guaranteed",
@@ -75,6 +79,23 @@ def filter_llm_response(raw_response: str) -> str:
     return raw_response
 
 
+def is_personal_advice_request(text: str) -> bool:
+    """
+    Quick guardrail for 'what should I buy/sell' type questions.
+    """
+    text_l = text.lower()
+    trigger_phrases = [
+        "should i buy",
+        "should i sell",
+        "should i hold",
+        "what stock should i buy",
+        "tell me what to buy",
+        "tell me what to sell",
+        "exactly what should i do",
+    ]
+    return any(p in text_l for p in trigger_phrases)
+
+
 # ======================================
 # Main advisor chat entry point
 # ======================================
@@ -85,8 +106,10 @@ def chat_with_advisor(
     action_text: str,
     pos_text: str,
     neg_text: str,
-    backtest_summary: Optional[str] = None,
-    conversation_history: Optional[str] = None,
+    backtest_summary: str | None = None,
+    conversation_history: str | None = None,
+    rl_confidence: float | None = None,
+    risk_label: str | None = None,
 ) -> str:
     """
     Generate a conversational, educational response using a local Ollama model.
@@ -98,7 +121,7 @@ def chat_with_advisor(
     ticker : str
         Stock ticker currently being discussed.
     action_text : str
-        One of BUY / SELL / HOLD.
+        One of BUY / SELL / HOLD (model recommendation).
     pos_text : str
         Human-readable summary of positive contributing factors.
     neg_text : str
@@ -109,6 +132,10 @@ def chat_with_advisor(
         Recent conversation turns, formatted as:
             User: ...
             Advisor: ...
+    rl_confidence : Optional[float]
+        Model confidence for this ticker (0–1). If None, treated as unknown.
+    risk_label : Optional[str]
+        Risk classification for this ticker, e.g. "Low", "Medium", "High".
 
     Returns
     -------
@@ -116,7 +143,18 @@ def chat_with_advisor(
         Advisor's natural-language response.
     """
 
-    # 1) Input sanitisation
+    # --- 1) Hard guardrail for explicit personal advice requests ---
+    if is_personal_advice_request(user_question):
+        return (
+            "I can’t tell you exactly what to buy or sell – this tool is only for **education**.\n\n"
+            "- I can explain how the model is thinking about **"
+            f"{ticker}** and what the key risks are.\n"
+            "- I can help you understand concepts like indicators, risk levels and backtesting.\n\n"
+            "For real investment decisions, please speak with a licensed financial professional "
+            "who can consider your full financial situation."
+        )
+
+    # --- 2) Input sanitisation (prompt injection etc.) ---
     cleaned_question = sanitize_user_question(user_question)
 
     # If the question was blocked, return the block message directly
@@ -124,19 +162,30 @@ def chat_with_advisor(
         return cleaned_question
 
     # =========================
-    # 2) Core context for the LLM (structured prompting)
+    # 3) Core context for the LLM (structured prompting)
     # =========================
+    if rl_confidence is not None:
+        confidence_text = f"{rl_confidence:.0%} (approximate)"
+    else:
+        confidence_text = "Not available"
+
+    risk_text = risk_label or "Not available"
+
     base_context = textwrap.dedent(
         f"""
-        You are an educational AI financial advisor.
+        You are an **educational AI financial advisor** inside a university Final Year Project app
+        called "Secure Explainable AI Financial Advisor Bot".
 
         Your role:
         - Help a non-technical user understand an AI-based trading advisor.
         - Be clear, neutral, and transparent.
         - Never provide real financial advice or guarantees.
 
-        Current stock under discussion: {ticker}
-        Advisor's recommended action: {action_text}
+        Context for this session:
+        - Current stock under discussion: {ticker}
+        - Advisor's recommended action: {action_text}
+        - Model confidence for this recommendation: {confidence_text}
+        - Risk level classification: {risk_text}
 
         Key positive signals detected by the system:
         - {pos_text}
@@ -151,7 +200,7 @@ def chat_with_advisor(
         base_context += textwrap.dedent(
             f"""
 
-            Historical testing information:
+            Historical testing / strategy comparison (high level):
             {backtest_summary}
             """
         )
@@ -161,12 +210,12 @@ def chat_with_advisor(
     if conversation_history:
         history_block = textwrap.dedent(
             f"""
-            Previous conversation with this user:
+            Previous conversation with this user (most recent first):
             {conversation_history}
             """
         )
 
-    # Final prompt with explicit behavioural constraints
+    # Final prompt with explicit behavioural constraints & response structure
     prompt = textwrap.dedent(
         f"""
         {base_context}
@@ -176,21 +225,26 @@ def chat_with_advisor(
 
         "{cleaned_question}"
 
-        Instructions:
-        1. Answer in 3–6 short sentences.
-        2. Use simple, non-technical language.
-        3. Refer to previous messages only if relevant.
-        4. Do NOT invent specific numbers or predictions.
-        5. Always remind the user this is educational and NOT financial advice.
-        6. Do not encourage real trading actions.
-        7. Do not tell the user exactly what to buy or sell.
+        Instructions for your answer:
+        1. Start with a short 1–2 sentence **summary**.
+        2. Then give **3–6 bullet points** explaining the reasoning:
+           - Refer to the model's BUY/SELL/HOLD recommendation.
+           - Mention important positive and negative factors.
+           - Mention risk level and uncertainty where relevant.
+        3. Add a short section titled **"🔎 What this means in plain English"**
+           that re-explains the idea simply.
+        4. Do NOT invent specific numbers, prices, or predictions.
+        5. Do NOT give personal financial advice or tell the user what trades to make.
+        6. End with a line starting with **"Educational note:"** reminding the user
+           that this is for learning only and not real financial advice.
+        7. Do not encourage real trading actions or guarantee profits.
 
-        Respond directly to the user.
+        Now respond directly to the user.
         """
     )
 
     # =========================
-    # 3) Call Ollama API
+    # 4) Call Ollama API
     # =========================
     response = requests.post(
         OLLAMA_URL,
@@ -200,19 +254,19 @@ def chat_with_advisor(
             "stream": False,
             "num_predict": 256,
         },
-        timeout=120,
+        timeout=300,
     )
     response.raise_for_status()
     data = response.json()
 
     raw_text = data.get("response", "").strip()
 
-    # 4) Output filtering
+    # 5) Output filtering
     return filter_llm_response(raw_text)
 
 
 # ======================================
-# Conversation summarisation
+# Conversation summarisation (unchanged)
 # ======================================
 
 def summarize_conversation(
