@@ -7,7 +7,7 @@ def render_app_shell_topbar(user):
         "Dashboard",
         "Explanation",
         "Chat with Advisor",
-        "Profile / Settings",
+        "Portfolio",
         "Help / Glossary",
     ]
 
@@ -15,7 +15,7 @@ def render_app_shell_topbar(user):
         "Dashboard": "Dashboard",
         "Explanation": "Explanation",
         "Chat with Advisor": "Chat",
-        "Profile / Settings": "Profile",
+        "Portfolio": "Portfolio",
         "Help / Glossary": "Help",
     }
 
@@ -62,25 +62,14 @@ def render_app_shell_topbar(user):
                     st.rerun()
 
     with user_col:
-        st.markdown(
-            f"""
-            <div style="
-                display:flex;
-                justify-content:flex-end;
-                align-items:center;
-                gap:8px;
-                color:#cbd5e1;
-                font-size:0.95rem;
-                font-weight:600;
-                white-space:nowrap;
-                padding-top:0.45rem;
-            ">
-                <span style="font-size:1rem;">👤</span>
-                <span>{user.username}</span>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        if st.button(
+            f"👤 {user.username}",
+            key="open_trader_profile_btn",
+            use_container_width=True,
+            type="tertiary",
+        ):
+            st.session_state["active_page"] = "Trader Profile"
+            st.rerun()
 
     with logout_col:
         st.markdown(

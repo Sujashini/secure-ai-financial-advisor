@@ -87,8 +87,8 @@ def apply_global_styles():
     .section-title {
         font-size: 1.35rem;
         font-weight: 700;
-        color: #0f172a;
-        margin-top: 0.2rem;
+        color: #f8fafc;
+        margin-top: 0.3rem;
         margin-bottom: 0.25rem;
     }
 
@@ -99,25 +99,33 @@ def apply_global_styles():
     }
 
     .hero-card {
-        background: linear-gradient(135deg, #ffffff 0%, #f8fbff 100%);
-        border: 1px solid #e5e7eb;
+        background: rgba(30, 41, 59, 0.85);
+        border: 1px solid rgba(255,255,255,0.08);
         border-radius: 18px;
         padding: 18px 20px;
-        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
-        margin-bottom: 0.8rem;
+        backdrop-filter: blur(6px);
+        box-shadow: 0 10px 25px rgba(0,0,0,0.35);
+        margin-bottom: 0.9rem;
     }
 
     .card {
-        background: #ffffff;
-        border: 1px solid #e5e7eb;
+        background: rgba(30, 41, 59, 0.75);
+        border: 1px solid rgba(255,255,255,0.06);
         border-radius: 16px;
         padding: 16px 18px;
-        box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
-        margin-bottom: 0.7rem;
+        backdrop-filter: blur(4px);
+        box-shadow: 0 8px 20px rgba(0,0,0,0.35);
+        margin-bottom: 0.75rem;
+    }
+                
+    .card:hover {
+        border-color: rgba(99,102,241,0.35);
+        transform: translateY(-2px);
+        transition: all 0.15s ease;
     }
 
     .mini-label {
-        color: #6b7280;
+        color: #94a3b8;
         font-size: 0.82rem;
         margin-bottom: 0.2rem;
     }
@@ -125,7 +133,7 @@ def apply_global_styles():
     .big-value {
         font-size: 2rem;
         font-weight: 750;
-        color: #0f172a;
+        color: #f8fafc;
         line-height: 1.1;
     }
 
@@ -298,13 +306,28 @@ def apply_global_styles():
         font-size: 0.98rem;
         line-height: 1.6;
     }
-
+    .vega-embed {
+        background: transparent;
+        border-radius: 14px;
+        padding: 6px;
+    }
+    div[data-testid="stDataFrame"] {
+        background: rgba(30, 41, 59, 0.75);
+        border-radius: 14px;
+        padding: 4px;
+    }
     div[data-testid="stButton"] > button {
         border-radius: 12px;
     }
+    div[data-testid="stNumberInput"] input {
+        text-align: left;
+    }
 
     div[data-testid="stNumberInput"] {
-        margin-bottom: 0rem;
+        margin-bottom: 0.2rem;
+    }
+    div[data-testid="stRadio"] > div {
+        gap: 1rem;
     }
     </style>
     """, unsafe_allow_html=True)

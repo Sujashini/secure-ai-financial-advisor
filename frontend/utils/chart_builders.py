@@ -1,7 +1,8 @@
 import os
+from functools import reduce
+
 import altair as alt
 import pandas as pd
-from functools import reduce
 import streamlit as st
 
 from backend.data.market_data import fetch_stock_data
@@ -12,6 +13,43 @@ from backend.XAI.explainer import SurrogateExplainer
 from backend.Evaluation.backtest import backtest_ticker
 
 from frontend.utils.portfolio_helpers import get_latest_price_and_change
+
+
+def apply_dark_chart_theme(chart: alt.Chart) -> alt.Chart:
+    return (
+        chart
+        .configure(
+            background="transparent",
+            padding=10,
+        )
+        .configure_view(
+            stroke=None,
+            fill="transparent",
+        )
+        .configure_axis(
+            labelColor="#cbd5e1",
+            titleColor="#cbd5e1",
+            gridColor="rgba(255,255,255,0.08)",
+            domainColor="rgba(255,255,255,0.18)",
+            tickColor="rgba(255,255,255,0.18)",
+            labelFontSize=12,
+            titleFontSize=12,
+        )
+        .configure_legend(
+            labelColor="#cbd5e1",
+            titleColor="#e2e8f0",
+            orient="top-right",
+        )
+        .configure_header(
+            labelColor="#cbd5e1",
+            titleColor="#e2e8f0",
+        )
+        .configure_title(
+            color="#f8fafc",
+            fontSize=16,
+            anchor="start",
+        )
+    )
 
 
 def build_allocation_chart(portfolio):
@@ -38,19 +76,26 @@ def build_allocation_chart(portfolio):
 
     chart = (
         alt.Chart(df)
-        .mark_arc()
+        .mark_arc(outerRadius=110)
         .encode(
             theta=alt.Theta("Value:Q", stack=True),
-            color=alt.Color("Ticker:N", legend=alt.Legend(title="Ticker")),
+            color=alt.Color(
+                "Ticker:N",
+                legend=alt.Legend(title="Ticker"),
+                scale=alt.Scale(
+                    range=["#60a5fa", "#38bdf8", "#818cf8", "#22c55e", "#f59e0b"]
+                ),
+            ),
             tooltip=[
                 alt.Tooltip("Ticker:N"),
                 alt.Tooltip("Value:Q", format=",.2f", title="Value ($)"),
                 alt.Tooltip("Share:Q", format=".1%", title="Portfolio share"),
             ],
         )
-        .properties(height=260)
+        .properties(height=280)
     )
-    return chart
+
+    return apply_dark_chart_theme(chart)
 
 
 def build_indicator_chart(data: pd.DataFrame, selected_series=None):
@@ -74,28 +119,31 @@ def build_indicator_chart(data: pd.DataFrame, selected_series=None):
     )
 
     color_domain = ["close", "sma_10", "sma_20", "ema_10", "ema_20"]
-    color_range = ["#2563eb", "#f97316", "#22c55e", "#a855f7", "#6b7280"]
+    color_range = ["#60a5fa", "#fb923c", "#4ade80", "#c084fc", "#94a3b8"]
 
-    return (
+    chart = (
         alt.Chart(melted)
-        .mark_line()
+        .mark_line(strokeWidth=2.2)
         .encode(
             x=alt.X("date:T", title="Date"),
             y=alt.Y("value:Q", title="Price / Indicator"),
             color=alt.Color(
                 "series:N",
-                title="Series",
+                title=None,
                 scale=alt.Scale(domain=color_domain, range=color_range),
+                legend=None,
             ),
             tooltip=[
                 alt.Tooltip("date:T", title="Date"),
                 alt.Tooltip("series:N", title="Series"),
-                alt.Tooltip("value:Q", title="Value"),
+                alt.Tooltip("value:Q", title="Value", format=",.2f"),
             ],
         )
         .properties(height=300)
         .interactive()
     )
+
+    return apply_dark_chart_theme(chart)
 
 
 def build_shap_bar_chart(explanation: dict):
@@ -124,7 +172,7 @@ def build_shap_bar_chart(explanation: dict):
 
     df = pd.DataFrame(rows)
 
-    return (
+    chart = (
         alt.Chart(df)
         .mark_bar()
         .encode(
@@ -140,13 +188,15 @@ def build_shap_bar_chart(explanation: dict):
             ),
             tooltip=[
                 alt.Tooltip("feature:N", title="Feature"),
-                alt.Tooltip("value:Q", title="Contribution"),
+                alt.Tooltip("value:Q", title="Contribution", format=",.4f"),
                 alt.Tooltip("direction:N", title="Direction"),
             ],
         )
         .properties(height=280)
         .interactive()
     )
+
+    return apply_dark_chart_theme(chart)
 
 
 def build_price_action_chart(data: pd.DataFrame, agent: DQNAgent):
@@ -183,8 +233,8 @@ def build_price_action_chart(data: pd.DataFrame, agent: DQNAgent):
         y=alt.Y("close:Q", title="Close price"),
     )
 
-    price_line = base.mark_line()
-    action_points = base.mark_point(size=60).encode(
+    price_line = base.mark_line(strokeWidth=2.2, color="#60a5fa")
+    action_points = base.mark_point(size=65, filled=True).encode(
         shape=alt.Shape("action_label:N", title="Action"),
         color=alt.Color(
             "action_label:N",
@@ -196,12 +246,13 @@ def build_price_action_chart(data: pd.DataFrame, agent: DQNAgent):
         ),
         tooltip=[
             alt.Tooltip("date:T", title="Date"),
-            alt.Tooltip("close:Q", title="Price"),
+            alt.Tooltip("close:Q", title="Price", format=",.2f"),
             alt.Tooltip("action_label:N", title="Action"),
         ],
     )
 
-    return (price_line + action_points).interactive()
+    chart = (price_line + action_points).interactive()
+    return apply_dark_chart_theme(chart)
 
 
 def build_portfolio_performance_chart(portfolio, freq_code="M"):
@@ -248,25 +299,34 @@ def build_portfolio_performance_chart(portfolio, freq_code="M"):
     if freq_code == "M":
         df["label"] = df["date"].dt.strftime("%b %y")
         x_enc = alt.X("label:N", title="Month", sort=list(df["label"]))
+        tooltip_date = alt.Tooltip("label:N", title="Month")
     elif freq_code == "Q":
         df["label"] = df["date"].dt.to_period("Q").astype(str)
         x_enc = alt.X("label:N", title="Quarter", sort=list(df["label"]))
+        tooltip_date = alt.Tooltip("label:N", title="Quarter")
     elif freq_code == "Y":
         df["label"] = df["date"].dt.year.astype(str)
         x_enc = alt.X("label:N", title="Year", sort=list(df["label"]))
+        tooltip_date = alt.Tooltip("label:N", title="Year")
     else:
         x_enc = alt.X("date:T", title="Date")
+        tooltip_date = alt.Tooltip("date:T", title="Date")
 
     base = alt.Chart(df).encode(
         x=x_enc,
         y=alt.Y("portfolio_value:Q", title="Portfolio value ($)"),
         tooltip=[
-            alt.Tooltip("date:T", title="Date"),
+            tooltip_date,
             alt.Tooltip("portfolio_value:Q", title="Portfolio value", format=",.0f"),
         ],
     )
 
-    return (base.mark_area(opacity=0.12) + base.mark_line()).properties(height=310).interactive()
+    chart = (
+        base.mark_area(opacity=0.16, color="#60a5fa")
+        + base.mark_line(color="#3b82f6", strokeWidth=2.4)
+    ).properties(height=310).interactive()
+
+    return apply_dark_chart_theme(chart)
 
 
 def simulate_rsi_strategy_equity(data: pd.DataFrame, initial_cash=100_000.0):
@@ -331,9 +391,9 @@ def build_strategy_comparison_chart(ticker: str):
     }
     melted["strategy_label"] = melted["strategy"].map(name_map)
 
-    return (
+    chart = (
         alt.Chart(melted)
-        .mark_line()
+        .mark_line(strokeWidth=2.2)
         .encode(
             x=alt.X("date:T", title="Date"),
             y=alt.Y("equity:Q", title="Portfolio value ($)"),
@@ -347,6 +407,8 @@ def build_strategy_comparison_chart(ticker: str):
         .properties(height=300)
         .interactive()
     )
+
+    return apply_dark_chart_theme(chart)
 
 
 @st.cache_resource

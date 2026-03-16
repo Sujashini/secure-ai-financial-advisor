@@ -286,17 +286,36 @@ def render_watchlist():
 
 
 def render_holdings_table(portfolio):
-    st.markdown('<div class="section-title">Advisor suggestions for your holdings</div>', unsafe_allow_html=True)
-    if portfolio:
-        rows = []
-        for pos in portfolio:
-            rows.append(
-                {
-                    "Ticker": pos.ticker,
-                    "Shares": pos.shares,
-                    "Avg price ($)": f"{pos.avg_price:.2f}",
-                }
-            )
-        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-    else:
-        st.info("No advisor suggestions yet — your portfolio is empty.")
+    st.markdown('<div class="section-title">My holdings</div>', unsafe_allow_html=True)
+
+    if not portfolio:
+        st.info("No holdings yet — your portfolio is empty.")
+        return
+
+    rows_html = ""
+    for pos in portfolio:
+        rows_html += f"""
+        <tr>
+            <td style="padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.06);">{pos.ticker}</td>
+            <td style="padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.06);text-align:right;">{pos.shares}</td>
+            <td style="padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.06);text-align:right;">${pos.avg_price:.2f}</td>
+        </tr>
+        """
+
+    st.markdown(
+        f"""
+        <div class="card" style="padding:0; overflow:hidden;">
+            <table style="width:100%; border-collapse:collapse; color:#e5e7eb; font-size:0.95rem;">
+                <thead>
+                    <tr style="background:rgba(255,255,255,0.03);">
+                        <th style="text-align:left;padding:14px 16px;color:#94a3b8;font-weight:600;">Ticker</th>
+                        <th style="text-align:right;padding:14px 16px;color:#94a3b8;font-weight:600;">Shares</th>
+                        <th style="text-align:right;padding:14px 16px;color:#94a3b8;font-weight:600;">Avg Price ($)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {rows_html}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )

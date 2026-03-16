@@ -27,8 +27,9 @@ from frontend.components.navbar import render_app_shell_topbar
 from frontend.pages.dashboard import render_dashboard_page
 from frontend.pages.explanation import render_explanation_page
 from frontend.pages.chat import render_chat_page
-from frontend.pages.profile import render_profile_page
+from frontend.pages.portfolio import render_portfolio_page
 from frontend.pages.help import render_help_page
+from frontend.pages.trader_profile import render_trader_profile_page
 
 init_chat_db()
 
@@ -96,8 +97,11 @@ elif selected_page == "Chat with Advisor":
         explanation=explanation,
     )
 
-elif selected_page == "Profile / Settings":
-    render_profile_page(user)
+elif selected_page == "Portfolio":
+    render_portfolio_page(user, ticker)
 
 elif selected_page == "Help / Glossary":
     render_help_page()
+
+elif selected_page == "Trader Profile":
+    render_trader_profile_page(user)
