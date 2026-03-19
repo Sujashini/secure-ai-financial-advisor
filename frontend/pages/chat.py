@@ -1,4 +1,5 @@
 import html
+import re
 import streamlit as st
 
 from backend.LLM.ollama_chat import chat_with_advisor, summarize_conversation
@@ -32,7 +33,16 @@ def friendly_feature_name(feature: str) -> str:
 def _format_message(text: str) -> str:
     if not text:
         return ""
-    return html.escape(text).replace("\n", "<br>")
+
+    text = text.strip()
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+    safe_paragraphs = [html.escape(p).replace("\n", "<br>") for p in paragraphs]
+
+    return "".join(
+        f'<div style="margin-bottom:0.72rem; line-height:1.72;">{p}</div>'
+        for p in safe_paragraphs
+    )
 
 
 def _build_quick_questions(action_text, risk_label, pos_features):
@@ -40,7 +50,7 @@ def _build_quick_questions(action_text, risk_label, pos_features):
         "Why is the model recommending this action for this stock?",
         "What are the main risks for this stock according to the model?",
         "How does the RL strategy compare to a simple Buy and Hold strategy on past data?",
-        "Which indicators or features most influenced this recommendation?",
+        "Which signal mattered most for this recommendation?",
     ]
 
     if action_text == "BUY":
@@ -52,6 +62,8 @@ def _build_quick_questions(action_text, risk_label, pos_features):
 
     if str(risk_label).lower() == "high":
         quick_questions[1] = "Why is the risk level high for this stock right now?"
+    elif str(risk_label).lower() == "low":
+        quick_questions[1] = "Why is the risk level low for this stock right now?"
 
     if pos_features:
         quick_questions[3] = f"Why does {pos_features[0]} matter so much for this recommendation?"
@@ -59,11 +71,99 @@ def _build_quick_questions(action_text, risk_label, pos_features):
     return quick_questions
 
 
+def _risk_badge_color(risk_label: str) -> str:
+    label = str(risk_label).lower()
+    if label == "high":
+        return "#ef4444"
+    if label == "medium":
+        return "#f59e0b"
+    return "#22c55e"
+
+
+def _render_context_card(ticker, action_text, conf_pct, risk_label, pos_text, neg_text):
+    risk_color = _risk_badge_color(risk_label)
+
+    st.markdown(
+        f"""
+        <div style="
+            background: linear-gradient(135deg, rgba(30,41,59,0.94), rgba(15,23,42,0.98));
+            border: 1px solid rgba(148,163,184,0.14);
+            border-radius: 18px;
+            padding: 1rem 1.05rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 10px 24px rgba(0,0,0,0.18);
+        ">
+            <div style="
+                display:flex;
+                justify-content:space-between;
+                align-items:flex-start;
+                gap:1rem;
+                flex-wrap:wrap;
+                margin-bottom:0.7rem;
+            ">
+                <div>
+                    <div style="font-size:0.78rem; font-weight:700; color:#a5b4fc; letter-spacing:0.04em;">
+                        CHAT CONTEXT
+                    </div>
+                    <div style="font-size:1.1rem; font-weight:800; color:#f8fafc; margin-top:0.22rem;">
+                        {ticker} • {action_text}
+                    </div>
+                </div>
+                <div style="display:flex; gap:0.45rem; flex-wrap:wrap;">
+                    <span style="
+                        background:rgba(99,102,241,0.18);
+                        color:#e0e7ff;
+                        padding:0.28rem 0.62rem;
+                        border-radius:999px;
+                        font-size:0.8rem;
+                        font-weight:700;
+                    ">
+                        Confidence: {conf_pct}%
+                    </span>
+                    <span style="
+                        background:{risk_color};
+                        color:white;
+                        padding:0.28rem 0.62rem;
+                        border-radius:999px;
+                        font-size:0.8rem;
+                        font-weight:700;
+                    ">
+                        Risk: {risk_label}
+                    </span>
+                </div>
+            </div>
+            <div style="color:#cbd5e1; line-height:1.68;">
+                The advisor is answering questions about the current recommendation using the strongest
+                supportive signals (<b>{html.escape(pos_text)}</b>) and the main caution signals
+                (<b>{html.escape(neg_text)}</b>). Strategy comparisons are historical and shown for transparency only.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _render_empty_state():
+    st.markdown(
+        """
+        <div class="chat-bot" style="max-width:82%;">
+            <div class="chat-label">Advisor</div>
+            <div style="line-height:1.7;">
+                Ask a question about the current recommendation, the risk level, or the historical strategy comparison.
+                <br><br>
+                A good place to start is: <em>Why is the model recommending this action right now?</em>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def render_chat_page(user, ticker, action_text, conf_pct, risk_label, explanation):
     st.subheader("💬 Chat with the Advisor")
 
     st.info(
-        "This is an **educational prototype**, not financial advice.\n\n"
+        "This is an educational prototype, not financial advice.\n\n"
         "- It explains how the demo model is thinking about a stock.\n"
         "- It cannot consider your full financial situation.\n"
         "- Do not make real trading decisions based on this tool."
@@ -72,18 +172,36 @@ def render_chat_page(user, ticker, action_text, conf_pct, risk_label, explanatio
     with st.expander("What this chat can and cannot do"):
         st.markdown(
             """
-            **✅ This chat can help you:**
-            - Understand why the model suggests BUY / SELL / HOLD
-            - Interpret technical indicators and risk levels
-            - Compare the strategy with historical baselines
-            - Learn how the recommendation should be understood
+            **✅ This chat can help you**
+            - understand why the model suggests BUY / SELL / HOLD
+            - interpret indicators, confidence, and risk
+            - compare the RL strategy with simple historical baselines
+            - understand the recommendation in plain English
 
-            **🚫 This chat cannot do:**
-            - Give personalised financial advice
-            - Guarantee profits or predict the future with certainty
-            - Replace professional financial advice
+            **🚫 This chat cannot do**
+            - give personalised financial advice
+            - guarantee profits or predict the future with certainty
+            - replace professional financial advice
             """
         )
+
+    pos = explanation.get("top_positive", [])
+    neg = explanation.get("top_negative", [])
+
+    pos_features = [friendly_feature_name(item["feature"]) for item in pos]
+    neg_features = [friendly_feature_name(item["feature"]) for item in neg]
+
+    pos_text = ", ".join(pos_features[:3]) if pos_features else "no strong positive signals"
+    neg_text = ", ".join(neg_features[:3]) if neg_features else "no strong caution signals"
+
+    _render_context_card(
+        ticker=ticker,
+        action_text=action_text,
+        conf_pct=conf_pct,
+        risk_label=risk_label,
+        pos_text=pos_text,
+        neg_text=neg_text,
+    )
 
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -94,7 +212,7 @@ def render_chat_page(user, ticker, action_text, conf_pct, risk_label, explanatio
         st.metric("Signal confidence", f"{conf_pct}%")
 
     st.caption(
-        f"Risk level for {ticker}: **{risk_label}**. Responses are generated by a local language model and are for educational purposes only."
+        f"Market context for {ticker}: risk level is {risk_label.lower()}. Responses come from a local language model and are intended for learning and transparency."
     )
 
     st.divider()
@@ -117,7 +235,7 @@ def render_chat_page(user, ticker, action_text, conf_pct, risk_label, explanatio
 
     if summarize_disabled:
         st.caption(
-            f"Summarising becomes available after more chat history is available "
+            f"Summaries become available after a longer conversation "
             f"(currently {len(chat_history)} messages; need at least 6)."
         )
 
@@ -147,15 +265,7 @@ def render_chat_page(user, ticker, action_text, conf_pct, risk_label, explanatio
                 st.warning("Sorry, I couldn't summarise the conversation right now.")
 
     if not chat_history:
-        st.markdown(
-            """
-            <div class="chat-bot" style="max-width:80%;">
-                <div class="chat-label">Advisor</div>
-                No questions yet. Try asking: <em>Why is it suggesting HOLD for this stock?</em>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        _render_empty_state()
     else:
         st.markdown('<div class="chat-container">', unsafe_allow_html=True)
 
@@ -187,23 +297,13 @@ def render_chat_page(user, ticker, action_text, conf_pct, risk_label, explanatio
 
     st.divider()
 
-    pos = explanation.get("top_positive", [])
-    neg = explanation.get("top_negative", [])
-
-    pos_features = [friendly_feature_name(item["feature"]) for item in pos]
-    neg_features = [friendly_feature_name(item["feature"]) for item in neg]
-
-    pos_text = ", ".join(pos_features) if pos_features else "no strong positive signals"
-    neg_text = ", ".join(neg_features) if neg_features else "no strong caution signals"
-
     backtest_summary = (
-        "The RL strategy can be compared with two simple baselines: "
+        "The RL strategy is compared with two simple historical baselines: "
         "Buy and Hold, which keeps the stock throughout the period, and an RSI strategy, "
-        "which uses a basic technical signal. These are historical tests for transparency only."
+        "which uses a basic momentum-style technical signal. These comparisons are historical only."
     )
 
     rl_confidence = conf_pct / 100.0 if conf_pct is not None else None
-
     quick_questions = _build_quick_questions(action_text, risk_label, pos_features)
 
     st.markdown("### Quick questions")
@@ -227,9 +327,9 @@ def render_chat_page(user, ticker, action_text, conf_pct, risk_label, explanatio
     st.markdown("### Ask your own question")
     user_q = st.text_area(
         "Your question",
-        placeholder="Ask something about the recommendation, risk, or historical testing...",
+        placeholder="Ask about the recommendation, confidence, risk, indicators, or historical strategy testing...",
         key="advisor_text",
-        height=120,
+        height=110,
     )
 
     btn_col1, btn_col2 = st.columns([0.32, 0.68])
@@ -248,6 +348,8 @@ def render_chat_page(user, ticker, action_text, conf_pct, risk_label, explanatio
         question_to_send = quick_question
     elif ask_clicked and user_q.strip():
         question_to_send = user_q.strip()
+    elif ask_clicked and not user_q.strip():
+        st.warning("Please enter a question first.")
 
     if question_to_send is not None:
         recent_msgs = load_chat_history(user_id=user.id, ticker=ticker, limit=12)

@@ -521,5 +521,51 @@ def apply_global_styles():
         border: 1px solid rgba(99,102,241,0.5) !important;
         box-shadow: 0 0 0 1px rgba(99,102,241,0.2) !important;
     }
+        /* ===== DARK DATAFRAME FIX ===== */
+    div[data-testid="stDataFrame"] {
+        background: rgba(15, 23, 42, 0.92) !important;
+        border: 1px solid rgba(148, 163, 184, 0.16) !important;
+        border-radius: 14px !important;
+        padding: 6px !important;
+        overflow: hidden !important;
+    }
+
+    /* Main dataframe canvas area */
+    div[data-testid="stDataFrame"] [role="grid"] {
+        background: #0f172a !important;
+        color: #e2e8f0 !important;
+        border-radius: 12px !important;
+    }
+
+    /* Header cells */
+    div[data-testid="stDataFrame"] [role="columnheader"] {
+        background: #172554 !important;
+        color: #f8fafc !important;
+        font-weight: 700 !important;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.18) !important;
+    }
+
+    /* Body cells */
+    div[data-testid="stDataFrame"] [role="gridcell"] {
+        background: #0f172a !important;
+        color: #e2e8f0 !important;
+        border-color: rgba(148, 163, 184, 0.12) !important;
+    }
+
+    /* Row headers / index cells if any */
+    div[data-testid="stDataFrame"] [role="rowheader"] {
+        background: #0f172a !important;
+        color: #cbd5e1 !important;
+    }
+
+    /* Top-left corner block */
+    div[data-testid="stDataFrame"] [data-testid="StyledDataFrameCorner"] {
+        background: #172554 !important;
+    }
+
+    /* Make all text inside dataframe readable */
+    div[data-testid="stDataFrame"] * {
+        color: #e2e8f0 !important;
+    }
     </style>
     """, unsafe_allow_html=True)

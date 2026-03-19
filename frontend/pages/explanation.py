@@ -1,4 +1,3 @@
-import os
 import streamlit as st
 
 from frontend.utils.constants import ACTION_MAP
@@ -6,6 +5,9 @@ from frontend.utils.explanation_helpers import (
     generate_plain_english_explanation,
     compute_signal_strength_and_confidence,
     classify_risk_level,
+    get_risk_pill_class,
+    get_confidence_pill_class,
+    generate_takeaway_text,
 )
 from frontend.utils.chart_builders import (
     load_explainer,
@@ -16,19 +18,18 @@ from frontend.utils.chart_builders import (
 from frontend.utils.portfolio_helpers import compute_risk_metrics_for_ticker
 
 
-# Friendly fallback names for non-technical users
 FRIENDLY_FEATURE_NAMES = {
     "return_1": "Very recent price movement",
     "sma_10": "Short-term price trend",
     "sma_20": "Medium-term price trend",
     "ema_10": "Short-term trend (EMA)",
-    "ema_20": "Medium-term trend (EMA)",
+    "ema_20": "Smoothed medium-term trend",
     "volatility_10": "Recent price volatility",
     "rsi_14": "Momentum (RSI)",
-    "open": "Opening price",
+    "open": "Opening price behaviour",
     "high": "Recent high price",
     "low": "Recent low price",
-    "close": "Closing price",
+    "close": "Closing price behaviour",
     "volume": "Trading volume",
     "position_flag": "Current position status",
 }
@@ -38,14 +39,104 @@ def friendly_feature_name(feature: str) -> str:
     return FRIENDLY_FEATURE_NAMES.get(feature, feature.replace("_", " ").title())
 
 
-def render_signal_card(title, body):
+def render_signal_card(title, body, helper=None):
+    helper_html = (
+        f'<div style="color:#94a3b8;font-size:0.88rem;line-height:1.6;margin-top:0.4rem;">{helper}</div>'
+        if helper
+        else ""
+    )
+
     st.markdown(
         f"""
-        <div class="card" style="min-height:120px;">
+        <div class="card" style="min-height:138px;">
             <div class="mini-label">{title}</div>
-            <div style="color:#f8fafc;font-weight:700;font-size:1rem;line-height:1.55;margin-top:0.35rem;">
+            <div style="color:#f8fafc;font-weight:700;font-size:1rem;line-height:1.5;margin-top:0.35rem;">
                 {body}
             </div>
+            {helper_html}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_takeaway_banner(ticker, action_text, conf_pct, risk_label, conf_subtitle, risk_text):
+    conf_class = get_confidence_pill_class(
+        "High" if conf_pct >= 66 else "Medium" if conf_pct >= 33 else "Low"
+    )
+    risk_class = get_risk_pill_class(risk_label)
+    takeaway = generate_takeaway_text(
+        ticker=ticker,
+        action_text=action_text,
+        conf_pct=conf_pct,
+        risk_label=risk_label,
+        conf_subtitle=conf_subtitle,
+        risk_text=risk_text,
+    )
+
+    st.markdown(
+        f"""
+        <div style="
+            background: linear-gradient(135deg, rgba(16,185,129,0.12), rgba(30,41,59,0.9));
+            border: 1px solid rgba(148,163,184,0.14);
+            border-radius: 18px;
+            padding: 1rem 1.05rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 10px 24px rgba(0,0,0,0.16);
+        ">
+            <div style="
+                display:flex;
+                align-items:center;
+                justify-content:space-between;
+                gap:0.8rem;
+                flex-wrap:wrap;
+                margin-bottom:0.65rem;
+            ">
+                <div style="font-size:1.02rem;font-weight:800;color:#f8fafc;">
+                    Recommendation summary
+                </div>
+                <div style="display:flex;gap:0.45rem;flex-wrap:wrap;">
+                    <span class="{conf_class}">Confidence: {conf_pct}%</span>
+                    <span class="{risk_class}">Risk: {risk_label}</span>
+                </div>
+            </div>
+            <div style="color:#cbd5e1;line-height:1.72;">
+                {takeaway}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_reason_chip(feature_name, value, positive=True):
+    pill_class = "pill pill-green" if positive else "pill pill-red"
+    st.markdown(
+        f"""
+        <div class="card" style="padding:12px 14px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+                <span style="color:#f8fafc;font-weight:600;">{feature_name}</span>
+                <span class="{pill_class}">{float(value):.4f}</span>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_explanation_paragraphs(paragraphs):
+    html_blocks = ""
+    for p in paragraphs:
+        html_blocks += f"""
+        <div style="margin-bottom:0.8rem;line-height:1.75;color:#cbd5e1;font-size:0.98rem;">
+            {p}
+        </div>
+        """
+
+    st.markdown(
+        f"""
+        <div class="card">
+            {html_blocks}
         </div>
         """,
         unsafe_allow_html=True,
@@ -54,6 +145,7 @@ def render_signal_card(title, body):
 
 def render_explanation_page(ticker, data, agent, state, action):
     action_text = ACTION_MAP.get(action, "HOLD")
+    explanation_style = st.session_state.get("explanation_style", "Balanced")
 
     explainer = load_explainer(ticker)
     _, explanation = explainer.explain_state(state)
@@ -67,9 +159,13 @@ def render_explanation_page(ticker, data, agent, state, action):
         "and how the strategy behaved on historical data."
     )
 
-    st.success(
-        f"📊 The AI currently suggests **{action_text} {ticker}** with **{conf_pct}% confidence** "
-        f"and **{risk_label.lower()} risk**."
+    render_takeaway_banner(
+        ticker=ticker,
+        action_text=action_text,
+        conf_pct=conf_pct,
+        risk_label=risk_label,
+        conf_subtitle=conf_subtitle,
+        risk_text=risk_text,
     )
 
     # ----------------------------
@@ -79,11 +175,23 @@ def render_explanation_page(ticker, data, agent, state, action):
 
     o1, o2, o3 = st.columns(3)
     with o1:
-        render_signal_card("Current action", f"{action_text} ({ticker})")
+        render_signal_card(
+            "Current action",
+            f"{action_text} ({ticker})",
+            helper="This is the action currently preferred by the model.",
+        )
     with o2:
-        render_signal_card("How confident the AI is", f"{conf_pct}% — {conf_label}")
+        render_signal_card(
+            "How confident the AI is",
+            f"{conf_pct}% — {conf_label}",
+            helper=conf_subtitle,
+        )
     with o3:
-        render_signal_card("Risk view", f"{risk_label} — {risk_text}")
+        render_signal_card(
+            "Risk view",
+            f"{risk_label} risk",
+            helper=risk_text,
+        )
 
     # ----------------------------
     # Plain English explanation
@@ -92,35 +200,17 @@ def render_explanation_page(ticker, data, agent, state, action):
         '<div class="section-title">What this means in plain English</div>',
         unsafe_allow_html=True,
     )
+    st.caption(
+        f"Explanation style: {explanation_style}. This can later be personalised from the Trader Profile page."
+    )
 
-    plain_text = generate_plain_english_explanation(
+    paragraphs = generate_plain_english_explanation(
         ticker=ticker,
         action=action,
         explanation=explanation,
+        style=explanation_style,
     )
-
-    bullet_points = [
-        point.strip()
-        for point in plain_text.replace("\n", " ").split(". ")
-        if point.strip()
-    ]
-
-    bullets_html = "".join(
-        [f"<li style='margin-bottom:0.45rem;'>{point.rstrip('.')}</li>" for point in bullet_points]
-    )
-
-    st.markdown(
-        f"""
-        <div class="card">
-            <div style="color:#cbd5e1;line-height:1.75;font-size:0.98rem;">
-                <ul style="padding-left:1.2rem; margin:0;">
-                    {bullets_html}
-                </ul>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    render_explanation_paragraphs(paragraphs)
 
     # ----------------------------
     # Decision drivers
@@ -138,17 +228,7 @@ def render_explanation_page(ticker, data, agent, state, action):
         if explanation.get("top_positive"):
             for item in explanation["top_positive"]:
                 feature_name = friendly_feature_name(item["feature"])
-                st.markdown(
-                    f"""
-                    <div class="card" style="padding:12px 14px;">
-                        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
-                            <span style="color:#f8fafc;font-weight:600;">{feature_name}</span>
-                            <span class="pill pill-green">{float(item['value']):.4f}</span>
-                        </div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
+                render_reason_chip(feature_name, item["value"], positive=True)
         else:
             st.info("No strong supporting signals were identified.")
 
@@ -157,17 +237,7 @@ def render_explanation_page(ticker, data, agent, state, action):
         if explanation.get("top_negative"):
             for item in explanation["top_negative"]:
                 feature_name = friendly_feature_name(item["feature"])
-                st.markdown(
-                    f"""
-                    <div class="card" style="padding:12px 14px;">
-                        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
-                            <span style="color:#f8fafc;font-weight:600;">{feature_name}</span>
-                            <span class="pill pill-red">{float(item['value']):.4f}</span>
-                        </div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
+                render_reason_chip(feature_name, item["value"], positive=False)
         else:
             st.info("No strong caution signals were identified.")
 
@@ -236,17 +306,24 @@ def render_explanation_page(ticker, data, agent, state, action):
     else:
         m1, m2, m3 = st.columns(3)
         with m1:
-            render_signal_card("Total return", f"{metrics['total_return'] * 100:.1f}%")
+            render_signal_card(
+                "Total return",
+                f"{metrics['total_return'] * 100:.1f}%",
+                helper="Shows the overall historical growth or loss of the strategy.",
+            )
         with m2:
-            render_signal_card("Maximum drawdown", f"{metrics['max_drawdown'] * 100:.1f}%")
+            render_signal_card(
+                "Maximum drawdown",
+                f"{metrics['max_drawdown'] * 100:.1f}%",
+                helper="Shows the worst peak-to-trough drop during the backtest.",
+            )
         with m3:
             sharpe_text = f"{metrics['sharpe']:.2f}" if metrics["sharpe"] is not None else "N/A"
-            render_signal_card("Sharpe ratio", sharpe_text)
-
-        st.caption(
-            "Total return shows overall growth, maximum drawdown shows the worst drop from a previous peak, "
-            "and Sharpe ratio indicates return relative to risk."
-        )
+            render_signal_card(
+                "Sharpe ratio",
+                sharpe_text,
+                helper="Shows return relative to volatility; higher is usually better.",
+            )
 
     # ----------------------------
     # Model transparency note
@@ -256,12 +333,12 @@ def render_explanation_page(ticker, data, agent, state, action):
     st.markdown(
         f"""
         <div class="card">
-            <div style="color:#94a3b8;line-height:1.7;">
+            <div style="color:#94a3b8;line-height:1.75;">
                 The current recommendation for <b>{ticker}</b> is generated using a reinforcement learning model trained on
                 historical market data. The explanation on this page is based on the features that most influenced the
-                model's decision at the current state. A higher confidence score suggests that the current pattern looks
-                more similar to past situations where the model found a stronger action signal. This does not guarantee
-                future performance and is shown for educational transparency only.
+                model's decision in the current market state. A higher confidence score suggests that the present pattern
+                looks more similar to past situations where the model identified a stronger action signal. This improves
+                transparency, but it does not guarantee future performance.
             </div>
         </div>
         """,

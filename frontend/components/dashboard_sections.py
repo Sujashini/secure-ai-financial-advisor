@@ -385,37 +385,3 @@ def render_watchlist(selected_ticker=None):
         )
 
         st.markdown(watch_html, unsafe_allow_html=True)
-
-
-def render_holdings_table(portfolio):
-    st.markdown('<div class="section-title">My holdings</div>', unsafe_allow_html=True)
-
-    if not portfolio:
-        st.info("No holdings yet — your portfolio is empty.")
-        return
-
-    rows_html = ""
-    for pos in portfolio:
-        rows_html += f"""
-<tr>
-    <td style="padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.06);">{pos.ticker}</td>
-    <td style="padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.06);text-align:right;">{pos.shares}</td>
-    <td style="padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.06);text-align:right;">${pos.avg_price:.2f}</td>
-</tr>
-"""
-
-    table_html = f"""<div class="card" style="padding:0; overflow:hidden;">
-<table style="width:100%; border-collapse:collapse; color:#e5e7eb; font-size:0.95rem;">
-    <thead>
-        <tr style="background:rgba(255,255,255,0.03);">
-            <th style="text-align:left;padding:14px 16px;color:#94a3b8;font-weight:600;">Ticker</th>
-            <th style="text-align:right;padding:14px 16px;color:#94a3b8;font-weight:600;">Shares</th>
-            <th style="text-align:right;padding:14px 16px;color:#94a3b8;font-weight:600;">Avg Price ($)</th>
-        </tr>
-    </thead>
-    <tbody>
-        {rows_html}
-    </tbody>
-</table>
-</div>"""
-    st.markdown(table_html, unsafe_allow_html=True)
