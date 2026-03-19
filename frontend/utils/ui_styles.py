@@ -103,7 +103,7 @@ def apply_global_styles():
         border: 1px solid rgba(255,255,255,0.08);
         border-radius: 18px;
         padding: 18px 20px;
-        backdrop-filter: blur(6px);
+        backdrop-filter: blur(10px);
         box-shadow: 0 10px 25px rgba(0,0,0,0.35);
         margin-bottom: 0.9rem;
     }
@@ -117,7 +117,7 @@ def apply_global_styles():
         box-shadow: 0 8px 20px rgba(0,0,0,0.35);
         margin-bottom: 0.75rem;
     }
-                
+
     .card:hover {
         border-color: rgba(99,102,241,0.35);
         transform: translateY(-2px);
@@ -306,19 +306,23 @@ def apply_global_styles():
         font-size: 0.98rem;
         line-height: 1.6;
     }
+
     .vega-embed {
         background: transparent;
         border-radius: 14px;
         padding: 6px;
     }
+
     div[data-testid="stDataFrame"] {
         background: rgba(30, 41, 59, 0.75);
         border-radius: 14px;
         padding: 4px;
     }
+
     div[data-testid="stButton"] > button {
         border-radius: 12px;
     }
+
     div[data-testid="stNumberInput"] input {
         text-align: left;
     }
@@ -326,8 +330,196 @@ def apply_global_styles():
     div[data-testid="stNumberInput"] {
         margin-bottom: 0.2rem;
     }
+
     div[data-testid="stRadio"] > div {
         gap: 1rem;
+    }
+
+    /* ===== SELECTBOX / DROPDOWN FALLBACK FIX ===== */
+
+    /* Closed select box stays dark */
+    div[data-baseweb="select"] > div {
+        background: rgba(15, 23, 42, 0.96) !important;
+        border: 1px solid rgba(99, 102, 241, 0.45) !important;
+        border-radius: 14px !important;
+        min-height: 48px !important;
+        padding: 2px 8px !important;
+        box-shadow: none !important;
+    }
+
+    div[data-baseweb="select"] * {
+        color: #e2e8f0 !important;
+    }
+
+    div[data-baseweb="select"] svg {
+        color: #94a3b8 !important;
+    }
+
+    div[data-baseweb="select"]:hover > div,
+    div[data-baseweb="select"] > div:focus-within {
+        border: 1px solid rgba(99, 102, 241, 0.75) !important;
+        box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.22) !important;
+    }
+
+    /* Fallback: if dropdown stays white, make text dark and readable */
+    div[data-baseweb="menu"] li,
+    div[data-baseweb="menu"] li span,
+    div[data-baseweb="menu"] li div,
+    ul[role="listbox"] li,
+    ul[role="listbox"] li span,
+    ul[role="listbox"] li div,
+    li[role="option"],
+    li[role="option"] * {
+        color: #334155 !important;
+    }
+
+    /* Keep selected option highlighted */
+    li[role="option"][aria-selected="true"],
+    ul[role="listbox"] li[aria-selected="true"] {
+        background: rgba(99, 102, 241, 0.35) !important;
+    }
+
+    li[role="option"][aria-selected="true"],
+    li[role="option"][aria-selected="true"] *,
+    ul[role="listbox"] li[aria-selected="true"],
+    ul[role="listbox"] li[aria-selected="true"] * {
+        color: #ffffff !important;
+    }
+
+    /* Hover text stays readable */
+    li[role="option"]:hover,
+    li[role="option"]:hover *,
+    ul[role="listbox"] li:hover,
+    ul[role="listbox"] li:hover * {
+        color: #0f172a !important;
+    }
+    /* ===== NUMBER INPUT CLEAN DARK FIX ===== */
+
+    /* Whole widget spacing */
+    div[data-testid="stNumberInput"] {
+        margin-bottom: 0.2rem;
+    }
+
+    /* Main visible box */
+    div[data-testid="stNumberInput"] > div {
+        background: rgba(30, 41, 59, 0.88) !important;
+        border: 1px solid rgba(255,255,255,0.08) !important;
+        border-radius: 16px !important;
+        overflow: hidden !important;
+        min-height: 56px !important;
+    }
+
+    /* Inner wrapper layers */
+    div[data-testid="stNumberInput"] > div > div {
+        background: transparent !important;
+        border: none !important;
+    }
+
+    /* The actual input area */
+    div[data-testid="stNumberInput"] input {
+        background: rgba(30, 41, 59, 0.88) !important;
+        color: #e2e8f0 !important;
+        border: none !important;
+        box-shadow: none !important;
+        font-weight: 500 !important;
+        font-size: 1.05rem !important;
+    }
+
+    /* Extra force for browser number field */
+    div[data-testid="stNumberInput"] input[type="number"] {
+        background: rgba(30, 41, 59, 0.88) !important;
+        color: #e2e8f0 !important;
+        appearance: textfield !important;
+        -moz-appearance: textfield !important;
+    }
+
+    /* Remove default browser spinner buttons if they appear */
+    div[data-testid="stNumberInput"] input[type="number"]::-webkit-outer-spin-button,
+    div[data-testid="stNumberInput"] input[type="number"]::-webkit-inner-spin-button {
+        -webkit-appearance: none !important;
+        margin: 0 !important;
+    }
+
+    /* Plus / minus buttons */
+    div[data-testid="stNumberInput"] button {
+        background: #0f172a !important;
+        color: #cbd5e1 !important;
+        border: none !important;
+        box-shadow: none !important;
+        min-width: 48px !important;
+    }
+
+    /* Button hover */
+    div[data-testid="stNumberInput"] button:hover {
+        background: #172554 !important;
+        color: #ffffff !important;
+    }
+
+    /* Focus state */
+    div[data-testid="stNumberInput"]:focus-within > div {
+        border: 1px solid rgba(99,102,241,0.55) !important;
+        box-shadow: 0 0 0 1px rgba(99,102,241,0.2) !important;
+    }
+    /* ===== CHAT UI ===== */
+    .chat-container {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .chat-user {
+        margin-left: auto;
+        background: linear-gradient(135deg, #4338ca, #6366f1);
+        color: #ffffff !important;
+        padding: 12px 16px;
+        border-radius: 16px 16px 4px 16px;
+        max-width: 72%;
+        font-size: 0.96rem;
+        line-height: 1.55;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.25);
+        margin-bottom: 10px;
+    }
+
+    .chat-bot {
+        margin-right: auto;
+        background: rgba(30, 41, 59, 0.88);
+        border: 1px solid rgba(255,255,255,0.08);
+        color: #e2e8f0 !important;
+        padding: 14px 16px;
+        border-radius: 16px 16px 16px 4px;
+        max-width: 78%;
+        font-size: 0.96rem;
+        line-height: 1.65;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.22);
+        margin-bottom: 10px;
+    }
+
+    .chat-user *,
+    .chat-bot * {
+        color: inherit !important;
+    }
+
+    .chat-label {
+        font-size: 0.8rem;
+        font-weight: 700;
+        opacity: 0.8;
+        margin-bottom: 4px;
+    }
+    /* ===== CHAT TEXT AREA ===== */
+    div[data-testid="stTextArea"] textarea {
+        background: rgba(30, 41, 59, 0.88) !important;
+        color: #e2e8f0 !important;
+        border: 1px solid rgba(255,255,255,0.08) !important;
+        border-radius: 14px !important;
+    }
+
+    div[data-testid="stTextArea"] textarea::placeholder {
+        color: #94a3b8 !important;
+    }
+
+    div[data-testid="stTextArea"] textarea:focus {
+        border: 1px solid rgba(99,102,241,0.5) !important;
+        box-shadow: 0 0 0 1px rgba(99,102,241,0.2) !important;
     }
     </style>
     """, unsafe_allow_html=True)

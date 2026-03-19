@@ -1,6 +1,6 @@
 import streamlit as st
 
-from backend.users.service import change_password, get_portfolio
+from backend.users.service import get_portfolio
 from frontend.utils.portfolio_helpers import compute_risk_metrics_for_ticker
 from frontend.utils.chart_builders import build_allocation_chart
 from frontend.components.dashboard_sections import (
@@ -11,7 +11,7 @@ from frontend.components.dashboard_sections import (
 
 
 def render_portfolio_page(user, ticker):
-    st.subheader("📁My Portfolio")
+    st.subheader("📁 My Portfolio")
 
     portfolio = get_portfolio(user.id)
 
@@ -52,33 +52,8 @@ def render_portfolio_page(user, ticker):
         with m2:
             st.metric("Worst drop", f"{metrics['max_drawdown'] * 100:.1f}%")
         with m3:
-            st.metric("Sharpe", f"{metrics['sharpe']:.2f}" if metrics["sharpe"] is not None else "N/A")
+            st.metric(
+                "Sharpe",
+                f"{metrics['sharpe']:.2f}" if metrics["sharpe"] is not None else "N/A"
+            )
         st.caption("Historical backtest metrics shown for transparency only.")
-
-    st.markdown("---")
-    st.markdown("### Account settings")
-    st.markdown(f"**Username:** {user.username}")
-    st.markdown(f"**Email:** {user.email}")
-
-    st.markdown("---")
-    st.markdown("### Change password")
-
-    old_pw = st.text_input("Current password", type="password", key="prof_old_pw")
-    new_pw1 = st.text_input("New password", type="password", key="prof_new_pw1")
-    new_pw2 = st.text_input("Confirm new password", type="password", key="prof_new_pw2")
-
-    if st.button("Update password", key="btn_change_pw"):
-        if not old_pw or not new_pw1 or not new_pw2:
-            st.warning("Please fill in all the fields.")
-        elif new_pw1 != new_pw2:
-            st.error("New passwords do not match.")
-        elif len(new_pw1) < 8:
-            st.error("New password must be at least 8 characters long.")
-        else:
-            try:
-                change_password(user.id, old_pw, new_pw1)
-                st.success("Password updated successfully.")
-            except ValueError as e:
-                st.error(str(e))
-            except Exception:
-                st.error("Something went wrong while updating your password. Please try again.")

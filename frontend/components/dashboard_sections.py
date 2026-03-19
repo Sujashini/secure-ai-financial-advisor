@@ -1,12 +1,8 @@
 from datetime import datetime
-import pandas as pd
+
 import streamlit as st
 
 from backend.users.service import buy_shares, sell_shares
-from frontend.utils.explanation_helpers import (
-    get_confidence_pill_class,
-    get_risk_pill_class,
-)
 from frontend.utils.portfolio_helpers import (
     get_latest_price_and_change,
     compute_portfolio_unrealised,
@@ -15,29 +11,101 @@ from frontend.utils.portfolio_helpers import (
 )
 from frontend.utils.constants import WATCHLIST_TICKERS, COMPANY_NAMES
 
+FRIENDLY_FEATURE_NAMES = {
+    "return_1": "very recent price movement",
+    "sma_10": "short-term price trend",
+    "sma_20": "medium-term price trend",
+    "ema_10": "short-term trend (EMA)",
+    "ema_20": "smoothed medium-term trend",
+    "volatility_10": "recent price volatility",
+    "rsi_14": "momentum",
+    "open": "opening price behaviour",
+    "high": "recent high price",
+    "low": "recent low price",
+    "close": "closing price behaviour",
+    "volume": "trading volume",
+    "position_flag": "current position status",
+}
 
-def render_hero_section(ticker, action_text, conf_label, conf_pct, conf_subtitle, risk_label, risk_text, explanation):
+
+def friendly_feature_name(feature: str) -> str:
+    return FRIENDLY_FEATURE_NAMES.get(feature, feature.replace("_", " ").lower())
+
+
+def get_confidence_pill_class(conf_label: str) -> str:
+    if str(conf_label).lower() == "high":
+        return "pill pill-green"
+    if str(conf_label).lower() == "medium":
+        return "pill pill-amber"
+    return "pill pill-red"
+
+
+def get_risk_pill_class(risk_label: str) -> str:
+    if str(risk_label).lower() == "low":
+        return "pill pill-green"
+    if str(risk_label).lower() == "medium":
+        return "pill pill-amber"
+    return "pill pill-red"
+
+
+def render_hero_section(
+    ticker,
+    action_text,
+    conf_label,
+    conf_pct,
+    conf_subtitle,
+    risk_label,
+    risk_text,
+    explanation,
+    factor_summary=None,
+    current_price=None,
+    price_change_pct=None,
+):
     pos = explanation.get("top_positive", [])
-    top_features = [item["feature"] for item in pos[:3]]
-    factors_text = ", ".join(top_features) if top_features else "mixed signals"
+    top_features = [friendly_feature_name(item["feature"]) for item in pos[:3]]
 
-    st.markdown(
-        f"""
-        <div class="hero-card">
-            <div class="mini-label">AI recommendation for selected stock</div>
-            <div class="big-value">{action_text} ({ticker})</div>
-            <div style="margin-top: 0.55rem;">
-                <span class="{get_confidence_pill_class(conf_label)}">Confidence: {conf_pct}% ({conf_label})</span>
-                <span class="{get_risk_pill_class(risk_label)}" style="margin-left: 0.45rem;">Risk: {risk_label}</span>
-            </div>
-            <div class="soft-note">
-                Main factors behind this suggestion include: {factors_text}.<br>
-                {conf_subtitle} {risk_text}
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    if factor_summary is None:
+        factor_summary = ", ".join(top_features) if top_features else "mixed signals"
+
+    price_html = ""
+    if current_price is not None:
+        change_html = ""
+        if price_change_pct is not None:
+            change_color = "#16a34a" if price_change_pct >= 0 else "#dc2626"
+            arrow = "▲" if price_change_pct >= 0 else "▼"
+            change_html = (
+                f'<span style="color:{change_color};font-weight:600;margin-left:0.5rem;">'
+                f'{arrow} {price_change_pct:.2f}%</span>'
+            )
+
+        price_html = (
+            f'<div style="margin-top:0.5rem;color:#e2e8f0;font-size:0.98rem;">'
+            f'Current price: <b>${current_price:.2f}</b> {change_html}'
+            f"</div>"
+        )
+
+    hero_html = f"""<div class="hero-card">
+<div class="mini-label">AI recommendation for selected stock</div>
+<div class="big-value">{action_text} ({ticker})</div>
+
+<div style="margin-top:0.55rem;">
+    <span class="{get_confidence_pill_class(conf_label)}">Confidence: {conf_pct}% ({conf_label})</span>
+    <span class="{get_risk_pill_class(risk_label)}" style="margin-left:0.45rem;">Risk: {risk_label}</span>
+</div>
+
+{price_html}
+
+<div class="soft-note" style="margin-top:0.65rem;">
+    Main reasons behind this suggestion include <b>{factor_summary}</b>.<br>
+    {conf_subtitle} {risk_text}
+</div>
+
+<div style="margin-top:0.55rem;color:#94a3b8;font-size:0.94rem;">
+    Best next step: review the explanation tab for a fuller breakdown before acting.
+</div>
+</div>"""
+
+    st.markdown(hero_html, unsafe_allow_html=True)
 
 
 def render_trade_panel(user, ticker, action_text, current_price, portfolio):
@@ -47,8 +115,11 @@ def render_trade_panel(user, ticker, action_text, current_price, portfolio):
         unsafe_allow_html=True,
     )
 
+    st.session_state.setdefault("trade_history", [])
+
     if action_text == "BUY":
         trade_col1, trade_col2 = st.columns([3, 1])
+
         with trade_col1:
             shares_to_buy = st.number_input(
                 "Number of shares to buy",
@@ -56,6 +127,9 @@ def render_trade_panel(user, ticker, action_text, current_price, portfolio):
                 step=1.0,
                 key="buy_shares_input",
             )
+            estimated_cost = shares_to_buy * float(current_price)
+            st.caption(f"Estimated cost at latest price: ${estimated_cost:,.2f}")
+
         with trade_col2:
             st.markdown("<div style='height:1.75rem;'></div>", unsafe_allow_html=True)
             if st.button("✅ Buy shares", key="buy_btn", use_container_width=True):
@@ -75,14 +149,19 @@ def render_trade_panel(user, ticker, action_text, current_price, portfolio):
                             "price": float(current_price),
                         }
                     )
-                    st.success(f"Bought {shares_to_buy} shares of {ticker}.")
+                    st.success(f"Bought {shares_to_buy:.0f} shares of {ticker}.")
                     st.rerun()
                 except Exception as e:
                     st.error("Could not complete purchase.")
                     st.caption(str(e))
 
+        st.info(
+            "💡 The AI currently prefers buying. This simulated trade uses the latest available market price."
+        )
+
     elif action_text == "SELL":
         owned_position = next((p for p in portfolio if p.ticker == ticker), None)
+
         if owned_position:
             max_shares = float(owned_position.shares)
             trade_col1, trade_col2 = st.columns([3, 1])
@@ -95,6 +174,9 @@ def render_trade_panel(user, ticker, action_text, current_price, portfolio):
                     step=1.0,
                     key="sell_shares_input",
                 )
+                estimated_value = shares_to_sell * float(current_price)
+                st.caption(f"Estimated sale value at latest price: ${estimated_value:,.2f}")
+                st.caption(f"You currently own {max_shares:.0f} shares of {ticker}.")
 
             with trade_col2:
                 st.markdown("<div style='height:1.75rem;'></div>", unsafe_allow_html=True)
@@ -117,17 +199,25 @@ def render_trade_panel(user, ticker, action_text, current_price, portfolio):
                                 "cost_price": cost_price,
                             }
                         )
-                        st.success(f"Sold {shares_to_sell} shares of {ticker}.")
+                        st.success(f"Sold {shares_to_sell:.0f} shares of {ticker}.")
                         st.rerun()
                     except ValueError as e:
                         st.error(str(e))
                     except Exception as e:
                         st.error("Could not complete sale.")
                         st.caption(str(e))
+
+            st.info(
+                "💡 The AI currently prefers selling. This can help reduce exposure when caution signals are stronger."
+            )
         else:
-            st.info("You do not currently own this stock.")
+            st.info("You do not currently own this stock, so there is nothing available to sell.")
+
     else:
-        st.info("The AI suggests holding. No action is required right now.")
+        st.info(
+            "The AI currently prefers to hold. You do not need to take action right now, "
+            "but you can still review the explanation tab to understand why."
+        )
 
 
 def render_portfolio_snapshot(user, portfolio):
@@ -158,14 +248,12 @@ def render_portfolio_snapshot(user, portfolio):
                 change_str = f"{arrow} {change_pct:.2f}%"
 
             st.markdown(
-                f"""
-                <div class="card">
-                    <div style="font-weight:700;font-size:1rem;">{t}</div>
-                    <div class="mini-label">Shares: {pos.shares} · Avg: ${pos.avg_price:.2f}</div>
-                    <div style="font-size:1.8rem;font-weight:750;margin-top:0.35rem;">{price_str}</div>
-                    <div style="margin-top:0.2rem;color:{change_color};font-weight:600;">{change_str}</div>
-                </div>
-                """,
+                f"""<div class="card">
+<div style="font-weight:700;font-size:1rem;">{t}</div>
+<div class="mini-label">Shares: {pos.shares} · Avg: ${pos.avg_price:.2f}</div>
+<div style="font-size:1.8rem;font-weight:750;margin-top:0.35rem;">{price_str}</div>
+<div style="margin-top:0.2rem;color:{change_color};font-weight:600;">{change_str}</div>
+</div>""",
                 unsafe_allow_html=True,
             )
 
@@ -242,8 +330,9 @@ def render_account_summary(portfolio):
         st.success("No obvious concentration alerts based on your current holdings.")
 
 
-def render_watchlist():
+def render_watchlist(selected_ticker=None):
     st.markdown('<div class="section-title">My watchlist</div>', unsafe_allow_html=True)
+    st.caption("Daily move for selected stocks.")
 
     watchlist_rows = []
     for wt in WATCHLIST_TICKERS:
@@ -260,29 +349,42 @@ def render_watchlist():
         except Exception:
             continue
 
-    if watchlist_rows:
-        for r in watchlist_rows:
-            change_pct = r["Daily change (%)"]
-            change_color = "#16a34a" if (change_pct or 0) >= 0 else "#dc2626"
-            arrow = "▲" if (change_pct or 0) >= 0 else "▼"
+    if not watchlist_rows:
+        st.info("Watchlist prices are not available right now.")
+        return
 
-            st.markdown(
-                f'''
-                <div class="card" style="padding:12px 14px;">
-                    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-                        <div>
-                            <div style="font-weight:700;">{r["Ticker"]}</div>
-                            <div class="mini-label">{r["Name"]}</div>
-                        </div>
-                        <div style="text-align:right;">
-                            <div style="font-weight:700;">${r["Last price"]:.2f}</div>
-                            <div style="color:{change_color};font-size:0.85rem;">{arrow} {change_pct:.2f}%</div>
-                        </div>
-                    </div>
-                </div>
-                ''',
-                unsafe_allow_html=True,
-            )
+    for r in watchlist_rows:
+        change_pct = r["Daily change (%)"] if r["Daily change (%)"] is not None else 0.0
+        change_color = "#16a34a" if change_pct >= 0 else "#dc2626"
+        arrow = "▲" if change_pct >= 0 else "▼"
+
+        border_style = (
+            "2px solid rgba(99,102,241,0.55)"
+            if selected_ticker and r["Ticker"] == selected_ticker
+            else "1px solid rgba(255,255,255,0.06)"
+        )
+
+        selected_badge = ""
+        if selected_ticker and r["Ticker"] == selected_ticker:
+            selected_badge = '<div style="font-size:0.76rem;color:#a5b4fc;font-weight:600;margin-top:0.15rem;">Currently selected</div>'
+
+        watch_html = (
+            f'<div class="card" style="padding:12px 14px;border:{border_style};">'
+            f'<div style="display:flex;justify-content:space-between;align-items:flex-start;">'
+            f'<div>'
+            f'<div style="font-weight:700;">{r["Ticker"]}</div>'
+            f'<div class="mini-label">{r["Name"]}</div>'
+            f'{selected_badge}'
+            f'</div>'
+            f'<div style="text-align:right;">'
+            f'<div style="font-weight:700;">${r["Last price"]:.2f}</div>'
+            f'<div style="color:{change_color};font-size:0.85rem;">{arrow} {change_pct:.2f}%</div>'
+            f'</div>'
+            f'</div>'
+            f'</div>'
+        )
+
+        st.markdown(watch_html, unsafe_allow_html=True)
 
 
 def render_holdings_table(portfolio):
@@ -295,27 +397,25 @@ def render_holdings_table(portfolio):
     rows_html = ""
     for pos in portfolio:
         rows_html += f"""
-        <tr>
-            <td style="padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.06);">{pos.ticker}</td>
-            <td style="padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.06);text-align:right;">{pos.shares}</td>
-            <td style="padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.06);text-align:right;">${pos.avg_price:.2f}</td>
-        </tr>
-        """
+<tr>
+    <td style="padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.06);">{pos.ticker}</td>
+    <td style="padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.06);text-align:right;">{pos.shares}</td>
+    <td style="padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.06);text-align:right;">${pos.avg_price:.2f}</td>
+</tr>
+"""
 
-    st.markdown(
-        f"""
-        <div class="card" style="padding:0; overflow:hidden;">
-            <table style="width:100%; border-collapse:collapse; color:#e5e7eb; font-size:0.95rem;">
-                <thead>
-                    <tr style="background:rgba(255,255,255,0.03);">
-                        <th style="text-align:left;padding:14px 16px;color:#94a3b8;font-weight:600;">Ticker</th>
-                        <th style="text-align:right;padding:14px 16px;color:#94a3b8;font-weight:600;">Shares</th>
-                        <th style="text-align:right;padding:14px 16px;color:#94a3b8;font-weight:600;">Avg Price ($)</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {rows_html}
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    table_html = f"""<div class="card" style="padding:0; overflow:hidden;">
+<table style="width:100%; border-collapse:collapse; color:#e5e7eb; font-size:0.95rem;">
+    <thead>
+        <tr style="background:rgba(255,255,255,0.03);">
+            <th style="text-align:left;padding:14px 16px;color:#94a3b8;font-weight:600;">Ticker</th>
+            <th style="text-align:right;padding:14px 16px;color:#94a3b8;font-weight:600;">Shares</th>
+            <th style="text-align:right;padding:14px 16px;color:#94a3b8;font-weight:600;">Avg Price ($)</th>
+        </tr>
+    </thead>
+    <tbody>
+        {rows_html}
+    </tbody>
+</table>
+</div>"""
+    st.markdown(table_html, unsafe_allow_html=True)

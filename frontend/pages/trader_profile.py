@@ -1,8 +1,9 @@
 import streamlit as st
 
+from backend.users.service import change_password
+
 
 def render_trader_profile_page(user):
-    # Default saved preferences in session state
     defaults = {
         "risk_tolerance": "Moderate",
         "trading_style": "Swing Trading",
@@ -28,12 +29,10 @@ def render_trader_profile_page(user):
     left_col, right_col = st.columns([1, 1.4])
 
     with left_col:
-
         initials = user.username[:2].upper() if user.username else "TP"
 
         with st.container(border=True):
-
-            c1, c2 = st.columns([1,3])
+            c1, c2 = st.columns([1, 3])
 
             with c1:
                 st.markdown(
@@ -52,7 +51,7 @@ def render_trader_profile_page(user):
                     {initials}
                     </div>
                     """,
-                    unsafe_allow_html=True
+                    unsafe_allow_html=True,
                 )
 
             with c2:
@@ -73,10 +72,34 @@ def render_trader_profile_page(user):
 
             st.divider()
 
+            st.markdown("### Account settings")
+            old_pw = st.text_input("Current password", type="password", key="prof_old_pw")
+            new_pw1 = st.text_input("New password", type="password", key="prof_new_pw1")
+            new_pw2 = st.text_input("Confirm new password", type="password", key="prof_new_pw2")
+
+            if st.button("Update password", key="btn_change_pw", use_container_width=True):
+                if not old_pw or not new_pw1 or not new_pw2:
+                    st.warning("Please fill in all the fields.")
+                elif new_pw1 != new_pw2:
+                    st.error("New passwords do not match.")
+                elif len(new_pw1) < 8:
+                    st.error("New password must be at least 8 characters long.")
+                else:
+                    try:
+                        change_password(user.id, old_pw, new_pw1)
+                        st.success("Password updated successfully.")
+                    except ValueError as e:
+                        st.error(str(e))
+                    except Exception:
+                        st.error("Something went wrong while updating your password. Please try again.")
+
+            st.divider()
+
             st.caption(
                 "Educational prototype only. This system supports AI-driven "
                 "analysis but does not provide financial advice."
             )
+
     with right_col:
         st.markdown('<div class="section-title">Trading Preferences</div>', unsafe_allow_html=True)
 
@@ -196,7 +219,7 @@ def render_trader_profile_page(user):
                 st.rerun()
 
         with btn_right:
-            if st.button("💾 Save preferences", use_container_width=True, type="primary"):
+            if st.button("Save preferences", use_container_width=True, type="primary"):
                 st.session_state["risk_tolerance"] = risk_tolerance
                 st.session_state["trading_style"] = trading_style
                 st.session_state["investment_horizon"] = investment_horizon

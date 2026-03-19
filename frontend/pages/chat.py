@@ -1,3 +1,4 @@
+import html
 import streamlit as st
 
 from backend.LLM.ollama_chat import chat_with_advisor, summarize_conversation
@@ -6,6 +7,56 @@ from backend.LLM.chat_store import (
     save_message,
     clear_chat_history,
 )
+
+FRIENDLY_FEATURE_NAMES = {
+    "return_1": "very recent price movement",
+    "sma_10": "short-term price trend",
+    "sma_20": "medium-term price trend",
+    "ema_10": "short-term trend",
+    "ema_20": "smoothed medium-term trend",
+    "volatility_10": "recent price volatility",
+    "rsi_14": "momentum",
+    "open": "opening price behaviour",
+    "high": "recent high price",
+    "low": "recent low price",
+    "close": "closing price behaviour",
+    "volume": "trading volume",
+    "position_flag": "current position status",
+}
+
+
+def friendly_feature_name(feature: str) -> str:
+    return FRIENDLY_FEATURE_NAMES.get(feature, feature.replace("_", " ").lower())
+
+
+def _format_message(text: str) -> str:
+    if not text:
+        return ""
+    return html.escape(text).replace("\n", "<br>")
+
+
+def _build_quick_questions(action_text, risk_label, pos_features):
+    quick_questions = [
+        "Why is the model recommending this action for this stock?",
+        "What are the main risks for this stock according to the model?",
+        "How does the RL strategy compare to a simple Buy and Hold strategy on past data?",
+        "Which indicators or features most influenced this recommendation?",
+    ]
+
+    if action_text == "BUY":
+        quick_questions[0] = "Why does the model currently think this stock looks attractive?"
+    elif action_text == "SELL":
+        quick_questions[0] = "Why does the model currently think reducing exposure makes sense?"
+    else:
+        quick_questions[0] = "Why does the model prefer to wait instead of buying or selling?"
+
+    if str(risk_label).lower() == "high":
+        quick_questions[1] = "Why is the risk level high for this stock right now?"
+
+    if pos_features:
+        quick_questions[3] = f"Why does {pos_features[0]} matter so much for this recommendation?"
+
+    return quick_questions
 
 
 def render_chat_page(user, ticker, action_text, conf_pct, risk_label, explanation):
@@ -22,15 +73,15 @@ def render_chat_page(user, ticker, action_text, conf_pct, risk_label, explanatio
         st.markdown(
             """
             **✅ This chat can help you:**
-            - Understand why the model suggests BUY / SELL / HOLD.
-            - Interpret technical indicators and risk levels.
-            - Learn basic investing and risk management concepts.
-            - Understand limitations of the RL model and backtests.
+            - Understand why the model suggests BUY / SELL / HOLD
+            - Interpret technical indicators and risk levels
+            - Compare the strategy with historical baselines
+            - Learn how the recommendation should be understood
 
             **🚫 This chat cannot do:**
-            - Give personalised financial advice.
-            - Guarantee profits or predict the future with certainty.
-            - Replace professional financial advice.
+            - Give personalised financial advice
+            - Guarantee profits or predict the future with certainty
+            - Replace professional financial advice
             """
         )
 
@@ -48,74 +99,112 @@ def render_chat_page(user, ticker, action_text, conf_pct, risk_label, explanatio
 
     st.divider()
 
-    chat_history = load_chat_history(user_id=user.id, ticker=ticker, limit=50)
+    chat_history = load_chat_history(user_id=user.id, ticker=ticker, limit=20)
 
-    if len(chat_history) >= 8:
-        if st.button("🧾 Summarise conversation so far"):
-            convo_text_for_summary = ""
-            for m in chat_history:
-                speaker = "User" if m["role"] == "user" else "Advisor"
-                convo_text_for_summary += f"{speaker}: {m['content']}\n"
+    convo_title_col, convo_btn_col = st.columns([0.72, 0.28])
 
-            with st.spinner("Summarising conversation..."):
-                try:
-                    summary = summarize_conversation(
-                        ticker=ticker,
-                        conversation_history=convo_text_for_summary,
-                    )
-                    st.markdown("**Conversation summary so far:**")
-                    st.write(summary)
-                except Exception:
-                    st.warning("Sorry, I couldn't summarise the conversation right now.")
+    with convo_title_col:
+        st.markdown("### Conversation")
 
-    st.markdown("### Conversation")
+    with convo_btn_col:
+        summarize_disabled = len(chat_history) < 6
+        summarize_clicked = st.button(
+            "🧾 Summarise conversation",
+            key="summarise_conversation_btn",
+            disabled=summarize_disabled,
+            use_container_width=True,
+        )
+
+    if summarize_disabled:
+        st.caption(
+            f"Summarising becomes available after more chat history is available "
+            f"(currently {len(chat_history)} messages; need at least 6)."
+        )
+
+    if summarize_clicked and not summarize_disabled:
+        convo_text_for_summary = ""
+        for m in chat_history:
+            speaker = "User" if m["role"] == "user" else "Advisor"
+            convo_text_for_summary += f"{speaker}: {m['content']}\n"
+
+        with st.spinner("Summarising conversation..."):
+            try:
+                summary = summarize_conversation(
+                    ticker=ticker,
+                    conversation_history=convo_text_for_summary,
+                )
+                st.markdown("#### Conversation summary")
+                st.markdown(
+                    f"""
+                    <div class="chat-bot" style="max-width:100%;">
+                        <div class="chat-label">Summary</div>
+                        {_format_message(summary)}
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+            except Exception:
+                st.warning("Sorry, I couldn't summarise the conversation right now.")
 
     if not chat_history:
-        st.write("No questions yet. Try asking: *Why is it suggesting HOLD for this stock?*")
+        st.markdown(
+            """
+            <div class="chat-bot" style="max-width:80%;">
+                <div class="chat-label">Advisor</div>
+                No questions yet. Try asking: <em>Why is it suggesting HOLD for this stock?</em>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
     else:
+        st.markdown('<div class="chat-container">', unsafe_allow_html=True)
+
         for msg in chat_history:
+            safe_text = _format_message(msg["content"])
+
             if msg["role"] == "user":
-                col_left, col_right = st.columns([0.7, 0.3])
-                with col_left:
-                    st.markdown(
-                        f"""
-                        <div style="background-color:#e8f4ff;padding:8px 12px;border-radius:16px;margin-bottom:6px;">
-                            <strong>You:</strong><br>{msg['content']}
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
+                st.markdown(
+                    f"""
+                    <div class="chat-user">
+                        <div class="chat-label">You</div>
+                        {safe_text}
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
             else:
-                col_left, col_right = st.columns([0.3, 0.7])
-                with col_right:
-                    st.markdown(
-                        f"""
-                        <div style="background-color:#f4f4f4;padding:8px 12px;border-radius:16px;margin-bottom:6px;">
-                            <strong>Advisor:</strong><br>{msg['content']}
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
+                st.markdown(
+                    f"""
+                    <div class="chat-bot">
+                        <div class="chat-label">Advisor</div>
+                        {safe_text}
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+        st.markdown("</div>", unsafe_allow_html=True)
 
     st.divider()
 
     pos = explanation.get("top_positive", [])
     neg = explanation.get("top_negative", [])
-    pos_features = [item["feature"] for item in pos]
-    neg_features = [item["feature"] for item in neg]
+
+    pos_features = [friendly_feature_name(item["feature"]) for item in pos]
+    neg_features = [friendly_feature_name(item["feature"]) for item in neg]
 
     pos_text = ", ".join(pos_features) if pos_features else "no strong positive signals"
-    neg_text = ", ".join(neg_features) if neg_features else "no strong negative signals"
+    neg_text = ", ".join(neg_features) if neg_features else "no strong caution signals"
 
     backtest_summary = (
-        "Strategy comparison summary for this stock:\n"
-        "- RL strategy performance: see the strategy comparison chart.\n"
-        "- Buy & Hold baseline: holding the stock over the same period.\n"
-        "- RSI strategy: simple technical indicator-based strategy.\n"
-        "These are historical tests and do not guarantee future performance."
+        "The RL strategy can be compared with two simple baselines: "
+        "Buy and Hold, which keeps the stock throughout the period, and an RSI strategy, "
+        "which uses a basic technical signal. These are historical tests for transparency only."
     )
 
     rl_confidence = conf_pct / 100.0 if conf_pct is not None else None
+
+    quick_questions = _build_quick_questions(action_text, risk_label, pos_features)
 
     st.markdown("### Quick questions")
     qp_col1, qp_col2 = st.columns(2)
@@ -123,30 +212,31 @@ def render_chat_page(user, ticker, action_text, conf_pct, risk_label, explanatio
 
     quick_question = None
     with qp_col1:
-        if st.button("📈 Why is it recommending this?"):
-            quick_question = "Why is the model recommending this action for this stock?"
+        if st.button(f"📈 {quick_questions[0]}", use_container_width=True):
+            quick_question = quick_questions[0]
     with qp_col2:
-        if st.button("⚠️ What are the risks?"):
-            quick_question = "What are the main risks for this stock according to the model?"
+        if st.button(f"⚠️ {quick_questions[1]}", use_container_width=True):
+            quick_question = quick_questions[1]
     with qp_col3:
-        if st.button("📊 How does this compare to Buy & Hold?"):
-            quick_question = "How does the RL strategy compare to a simple Buy and Hold strategy on past data?"
+        if st.button(f"📊 {quick_questions[2]}", use_container_width=True):
+            quick_question = quick_questions[2]
     with qp_col4:
-        if st.button("🔎 What indicators influenced this?"):
-            quick_question = "Which indicators or features most influenced this recommendation?"
+        if st.button(f"🔎 {quick_questions[3]}", use_container_width=True):
+            quick_question = quick_questions[3]
 
     st.markdown("### Ask your own question")
     user_q = st.text_area(
         "Your question",
         placeholder="Ask something about the recommendation, risk, or historical testing...",
         key="advisor_text",
+        height=120,
     )
 
-    btn_col1, btn_col2 = st.columns([0.6, 0.4])
+    btn_col1, btn_col2 = st.columns([0.32, 0.68])
     with btn_col1:
-        ask_clicked = st.button("Ask the advisor", key="ask_advisor_btn")
+        ask_clicked = st.button("Ask the advisor", key="ask_advisor_btn", use_container_width=True)
     with btn_col2:
-        clear_clicked = st.button("🗑️ Clear conversation", key="clear_convo_btn")
+        clear_clicked = st.button("🗑️ Clear conversation", key="clear_convo_btn", use_container_width=False)
 
     if clear_clicked:
         clear_chat_history(user.id, ticker)
@@ -160,29 +250,30 @@ def render_chat_page(user, ticker, action_text, conf_pct, risk_label, explanatio
         question_to_send = user_q.strip()
 
     if question_to_send is not None:
-        recent_msgs = load_chat_history(user_id=user.id, ticker=ticker, limit=20)
+        recent_msgs = load_chat_history(user_id=user.id, ticker=ticker, limit=12)
         convo_text = ""
         for m in recent_msgs:
             speaker = "User" if m["role"] == "user" else "Advisor"
             convo_text += f"{speaker}: {m['content']}\n"
 
         try:
-            answer = chat_with_advisor(
-                user_question=question_to_send,
-                ticker=ticker,
-                action_text=action_text,
-                pos_text=pos_text,
-                neg_text=neg_text,
-                backtest_summary=backtest_summary,
-                conversation_history=convo_text,
-                rl_confidence=rl_confidence,
-                risk_label=risk_label,
-            )
+            with st.spinner("Thinking..."):
+                answer = chat_with_advisor(
+                    user_question=question_to_send,
+                    ticker=ticker,
+                    action_text=action_text,
+                    pos_text=pos_text,
+                    neg_text=neg_text,
+                    backtest_summary=backtest_summary,
+                    conversation_history=convo_text,
+                    rl_confidence=rl_confidence,
+                    risk_label=risk_label,
+                )
 
             save_message(user.id, ticker, "user", question_to_send)
             save_message(user.id, ticker, "assistant", answer)
             st.rerun()
 
         except Exception as e:
-            st.error("Could not reach the local language model.")
+            st.error("⚠️ The AI model is currently unavailable or taking too long. Please try again.")
             st.caption(str(e))

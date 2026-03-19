@@ -17,6 +17,11 @@ def generate_plain_english_explanation(ticker: str, action: int, explanation: di
         "high": "recent highs",
         "low": "recent lows",
         "close": "recent closing prices",
+        "volume": "trading volume",
+        "macd": "trend momentum (MACD)",
+        "macd_signal": "MACD signal trend",
+        "bollinger_upper": "upper Bollinger band level",
+        "bollinger_lower": "lower Bollinger band level",
     }
 
     def format_feature_list(items):
@@ -71,8 +76,8 @@ def generate_plain_english_explanation(ticker: str, action: int, explanation: di
     else:
         summary = (
             f"For {ticker}, the system suggests **HOLD**. "
-            f"Signals from {pos_text} and {neg_text} are relatively balanced, "
-            "so it does not see a strong reason to buy more or to sell right now. "
+            f"The current signals are relatively balanced, with factors such as {pos_text} and {neg_text} not pointing strongly in one direction. "
+            "So it does not see a strong reason to buy more or to sell right now. "
             "This indicates uncertainty rather than a clear prediction."
         )
 

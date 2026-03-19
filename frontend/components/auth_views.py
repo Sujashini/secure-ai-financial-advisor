@@ -23,7 +23,7 @@ def show_landing_page():
         st.markdown(
             """
             <div style="font-size:1.2rem;font-weight:700;color:white;padding-top:0.25rem;">
-                📈AI Financial Advisor Bot
+                📈 SAFE-Bot
             </div>
             """,
             unsafe_allow_html=True,
@@ -47,28 +47,56 @@ def show_landing_page():
     hero_left, hero_right = st.columns([1.05, 1])
 
     with hero_left:
-        st.markdown("""
-<div class="hero-title">
-Secure Explainable AI<br>Financial Advisor
-</div>
-""", unsafe_allow_html=True)
+        st.markdown(
+            """
+            <div class="hero-title">
+                Secure Explainable AI<br>Financial Advisor
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
-        st.markdown("""
-<div class="hero-text">
-Personalized investment guidance powered by reinforcement learning,
-explainable AI, and real-time market data. Explore recommendations,
-manage a simulated portfolio, and understand why the model suggests
-BUY, SELL, or HOLD.
-</div>
-""", unsafe_allow_html=True)
+        st.markdown(
+            """
+            <div class="hero-text">
+                Explainable AI-powered financial guidance using reinforcement learning,
+                technical indicators, and historical strategy evaluation. Understand not
+                only <b>what</b> the model recommends, but also <b>why</b> it suggests
+                BUY, SELL, or HOLD, with risk insights and transparent comparisons against
+                baseline strategies.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        st.markdown(
+            """
+            <div class="card" style="margin-top:0.8rem;">
+                <div class="mini-label">Example recommendation</div>
+                <div style="color:#f8fafc;font-size:1.15rem;font-weight:700;margin-bottom:0.45rem;">
+                    BUY (AAPL)
+                </div>
+                <div style="margin-bottom:0.45rem;">
+                    <span class="pill pill-green">Confidence: 90% (High)</span>
+                    <span class="pill pill-green">Risk: Low</span>
+                </div>
+                <div style="color:#cbd5e1;line-height:1.65;font-size:0.96rem;">
+                    “The model currently favours AAPL because short-term signals are positive,
+                    recent price behaviour is strong, and historical patterns look similar to
+                    earlier periods where the strategy performed well.”
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
         b1, b2 = st.columns(2)
         with b1:
-            if st.button("Get Started", key="landing_get_started", use_container_width=True, type="primary"):
+            if st.button("Create Account", key="landing_get_started", use_container_width=True, type="primary"):
                 st.session_state["auth_view"] = "signup"
                 st.rerun()
         with b2:
-            if st.button("Login", key="landing_login", use_container_width=True, type="primary"):
+            if st.button("Sign In", key="landing_login", use_container_width=True, type="primary"):
                 st.session_state["auth_view"] = "login"
                 st.rerun()
 
@@ -76,39 +104,54 @@ BUY, SELL, or HOLD.
         chart_df = pd.DataFrame(
             {
                 "Month": list(range(1, 13)),
-                "AI Strategy": [22, 28, 27, 31, 35, 39, 42, 47, 46, 50, 53, 58],
-                "Baseline": [16, 18, 17, 19, 18, 20, 21, 22, 23, 25, 24, 26],
+                "RL strategy": [100, 118, 114, 132, 149, 165, 178, 201, 197, 215, 231, 249],
+                "Buy & Hold": [100, 106, 103, 111, 107, 116, 120, 124, 128, 137, 133, 141],
             }
-        ).melt(id_vars="Month", var_name="Series", value_name="Value")
+        ).melt(id_vars="Month", var_name="Strategy", value_name="Portfolio Value")
 
         chart = (
             alt.Chart(chart_df)
             .mark_line(point=True, strokeWidth=3)
             .encode(
-                x=alt.X("Month:Q", axis=None),
-                y=alt.Y("Value:Q", axis=None),
+                x=alt.X("Month:Q", title="Month"),
+                y=alt.Y("Portfolio Value:Q", title="Portfolio value"),
                 color=alt.Color(
-                    "Series:N",
+                    "Strategy:N",
                     scale=alt.Scale(
-                        domain=["AI Strategy", "Baseline"],
+                        domain=["RL strategy", "Buy & Hold"],
                         range=["#f43f5e", "#38bdf8"],
                     ),
-                    legend=None,
+                    legend=alt.Legend(title="Strategy", labelColor="#cbd5e1", titleColor="#f8fafc"),
                 ),
-                tooltip=["Series", "Value"],
+                tooltip=["Strategy", "Month", "Portfolio Value"],
             )
             .properties(height=320)
+            .configure_axis(
+                gridColor="rgba(255,255,255,0.08)",
+                domain=False,
+                tickColor="rgba(255,255,255,0.15)",
+                labelColor="#cbd5e1",
+                titleColor="#e2e8f0",
+            )
             .configure_view(stroke=None)
+            .configure_legend(
+                orient="top-right",
+                labelColor="#cbd5e1",
+                titleColor="#f8fafc",
+            )
         )
 
         st.markdown(
             """
-            <div style="
-                background:linear-gradient(135deg, #0f172a 0%, #172554 100%);
-                border-radius:24px;
-                padding:10px 14px 2px 14px;
-                box-shadow:0 10px 24px rgba(15,23,42,0.18);
-            ">
+            <div class="card" style="padding:16px 18px;">
+                <div class="mini-label">Illustrative backtest snapshot</div>
+                <div style="color:#f8fafc;font-weight:700;font-size:1.05rem;margin-bottom:0.35rem;">
+                    RL strategy vs Buy & Hold
+                </div>
+                <div style="color:#94a3b8;font-size:0.92rem;line-height:1.6;margin-bottom:0.6rem;">
+                    Example historical comparison showing how the reinforcement learning
+                    strategy can be evaluated against a simpler baseline.
+                </div>
             """,
             unsafe_allow_html=True,
         )
@@ -117,31 +160,84 @@ BUY, SELL, or HOLD.
 
     st.markdown("---")
 
+    st.markdown("## Why this system is different")
+    diff1, diff2, diff3, diff4 = st.columns(4)
+
+    differences = [
+        (
+            "🔍",
+            "Transparent decisions",
+            "See the main signals that pushed the model toward or against each recommendation.",
+        ),
+        (
+            "📊",
+            "Backtested strategies",
+            "Compare the RL strategy against Buy & Hold and RSI-based baselines on historical data.",
+        ),
+        (
+            "🧠",
+            "Explainable AI",
+            "Read plain-English summaries so non-technical users can understand the AI’s reasoning.",
+        ),
+        (
+            "⚠️",
+            "Risk-aware insights",
+            "View confidence, risk interpretation, and portfolio alerts alongside each recommendation.",
+        ),
+    ]
+
+    for col, (icon, title, text) in zip([diff1, diff2, diff3, diff4], differences):
+        with col:
+            st.markdown(
+                f"""
+                <div class="feature-card-dark">
+                    <div class="feature-icon">{icon}</div>
+                    <div class="feature-title">{title}</div>
+                    <div class="feature-text">{text}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
     st.markdown("## Key Features")
     f1, f2, f3 = st.columns(3)
 
     features = [
-        ("🤖", "AI-Powered Recommendations",
-         "Get stock suggestions driven by reinforcement learning, technical indicators, and historical price patterns."),
-        ("📊", "Real-Time Market Data",
-         "Inspect current price movement, trend indicators, historical performance, and strategy comparisons in one place."),
-        ("🧠", "Explainable AI",
-         "See which features influenced each decision so the recommendation is more transparent and easier to interpret."),
+        (
+            "🤖",
+            "AI-powered recommendations",
+            "Get stock suggestions driven by reinforcement learning, technical indicators, and historical price patterns.",
+        ),
+        (
+            "📈",
+            "Portfolio and market insights",
+            "Inspect price movement, indicators, historical performance, and portfolio behaviour in one place.",
+        ),
+        (
+            "🧾",
+            "Explanations for non-technical users",
+            "Understand why the model made its decision using friendly summaries, contributor lists, and comparison charts.",
+        ),
     ]
 
     for col, (icon, title, text) in zip([f1, f2, f3], features):
         with col:
-            st.markdown(f"""
-<div class="feature-card">
-    <div style="font-size:2rem;margin-bottom:10px;">{icon}</div>
-    <div style="font-size:1.2rem;font-weight:700;margin-bottom:8px;color:#6366f1;">
-        {title}
-    </div>
-    <div style="color:#cbd5e1;font-size:0.95rem;line-height:1.6;">
-        {text}
-    </div>
-</div>
-""", unsafe_allow_html=True)
+            st.markdown(
+                f"""
+                <div class="feature-card">
+                    <div style="font-size:2rem;margin-bottom:10px;">{icon}</div>
+                    <div style="font-size:1.2rem;font-weight:700;margin-bottom:8px;color:#6366f1;">
+                        {title}
+                    </div>
+                    <div style="color:#cbd5e1;font-size:0.95rem;line-height:1.6;">
+                        {text}
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("## How It Works")
@@ -150,35 +246,32 @@ BUY, SELL, or HOLD.
 
     with hw_left:
         steps = [
-            ("1", "Create Your Profile",
-             "Sign up securely to access your simulated portfolio, personalised dashboard, and advisor tools."),
-            ("2", "Get Explainable Recommendations",
-             "The system analyses market data and model signals to suggest BUY, SELL, or HOLD decisions."),
-            ("3", "Track and Learn",
-             "Monitor portfolio performance, compare strategies, and ask the advisor questions to understand the outputs."),
+            (
+                "1",
+                "Data processing",
+                "Market prices and technical indicators are gathered and transformed into signals the system can analyse.",
+            ),
+            (
+                "2",
+                "Reinforcement learning decision engine",
+                "The RL model evaluates the current market state and selects a BUY, SELL, or HOLD action.",
+            ),
+            (
+                "3",
+                "Explainability and user insight",
+                "The recommendation is presented with confidence, risk, historical comparisons, and plain-English explanations.",
+            ),
         ]
 
         for n, title, text in steps:
             st.markdown(
                 f"""
-                <div style="
-                    background:#1e293b;
-                    border:1px solid #e5e7eb;
-                    border-radius:18px;
-                    padding:16px 18px;
-                    box-shadow:0 4px 12px rgba(15,23,42,0.05);
-                    margin-bottom:0.8rem;
-                ">
-                    <div style="display:flex;gap:14px;align-items:flex-start;">
-                        <div style="
-                            min-width:44px;height:44px;border-radius:999px;
-                            background:#7c3aed;color:white;font-weight:700;
-                            display:flex;align-items:center;justify-content:center;
-                            font-size:1.2rem;
-                        ">{n}</div>
+                <div class="how-step-card">
+                    <div class="step-row">
+                        <div class="step-badge">{n}</div>
                         <div>
-                            <div style="font-size:1.2rem;font-weight:700;color:#6366f1;margin-bottom:0.25rem;">{title}</div>
-                            <div style="font-size:0.98rem;line-height:1.55;color:white;">{text}</div>
+                            <div class="step-title">{title}</div>
+                            <div class="step-text">{text}</div>
                         </div>
                     </div>
                 </div>
@@ -189,7 +282,7 @@ BUY, SELL, or HOLD.
     with hw_right:
         flow_nodes = pd.DataFrame(
             {
-                "label": ["User", "Profile", "Model", "Recommendation", "Portfolio"],
+                "label": ["Market data", "Indicators", "RL model", "Explanation", "Portfolio"],
                 "x": [1, 2, 3, 4, 4],
                 "y": [3, 3, 3, 4, 2],
             }
@@ -206,37 +299,49 @@ BUY, SELL, or HOLD.
         lines = (
             alt.Chart(flow_lines)
             .mark_line(strokeWidth=3, color="#34d399")
-            .encode(x=alt.X("x:Q", axis=None), y=alt.Y("y:Q", axis=None), detail="group:N")
+            .encode(
+                x=alt.X("x:Q", axis=None),
+                y=alt.Y("y:Q", axis=None),
+                detail="group:N",
+            )
         )
+
         nodes = (
             alt.Chart(flow_nodes)
             .mark_circle(size=1400, color="#60a5fa")
             .encode(x=alt.X("x:Q", axis=None), y=alt.Y("y:Q", axis=None))
         )
+
         labels = (
             alt.Chart(flow_nodes)
-            .mark_text(color="#0f172a", dy=30, fontSize=12)
+            .mark_text(color="#0f172a", dy=30, fontSize=12, fontWeight="bold")
             .encode(x="x:Q", y="y:Q", text="label:N")
         )
 
         st.markdown(
             """
-            <div style="
-                background:#ffffff;
-                border:1px solid #e5e7eb;
-                border-radius:18px;
-                padding:16px 16px 10px 16px;
-                box-shadow:0 4px 12px rgba(15,23,42,0.05);
-            ">
+            <div class="card" style="padding:16px 18px;">
+                <div class="mini-label">System pipeline</div>
+                <div style="color:#f8fafc;font-weight:700;font-size:1.05rem;margin-bottom:0.35rem;">
+                    From data to recommendation
+                </div>
+                <div style="color:#94a3b8;font-size:0.92rem;line-height:1.6;margin-bottom:0.6rem;">
+                    A simplified view of how the advisor processes data, makes a decision, and presents results to the user.
+                </div>
             """,
             unsafe_allow_html=True,
         )
-        st.altair_chart((lines + nodes + labels).properties(height=320).configure_view(stroke=None), use_container_width=True)
+        st.altair_chart(
+            (lines + nodes + labels).properties(height=320).configure_view(stroke=None),
+            use_container_width=True,
+        )
         st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("---")
-    st.markdown("## Ready to Start Investing Smarter?")
-    st.caption("Explore AI-powered recommendations, explanations, and portfolio insights in one educational platform.")
+    st.markdown("## Ready to explore explainable investing?")
+    st.caption(
+        "Use the dashboard to inspect recommendations, compare strategy performance, and understand how the AI reached its decision."
+    )
 
     c1, c2, c3 = st.columns([1.2, 1.2, 2.6])
     with c1:
@@ -248,22 +353,35 @@ BUY, SELL, or HOLD.
             st.session_state["auth_view"] = "login"
             st.rerun()
 
+    st.markdown(
+        """
+        <div class="soft-note" style="margin-top:1rem;">
+            ⚠️ Evaluation note: this educational prototype uses historical backtesting and baseline comparisons
+            (such as Buy & Hold and RSI strategies) to assess recommendation behaviour. Past performance does
+            not guarantee future results.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
     st.markdown("---")
     foot1, foot2, foot3 = st.columns(3)
 
     with foot1:
         st.markdown("### Secure Explainable AI Financial Advisor")
-        st.caption("Your educational AI-powered investment assistant.")
+        st.caption("Educational AI-powered investment assistant for transparent recommendation analysis.")
 
     with foot2:
         st.markdown("### Highlights")
         st.caption("• Reinforcement learning recommendations")
         st.caption("• Explainable AI insights")
+        st.caption("• Historical strategy comparison")
         st.caption("• Simulated portfolio tracking")
 
     with foot3:
         st.markdown("### Project Scope")
         st.caption("Built as an educational final year project prototype.")
+        st.caption("Designed for non-technical user interaction.")
         st.caption("Not financial advice.")
 
 
