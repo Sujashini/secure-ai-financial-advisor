@@ -59,6 +59,10 @@ def render_dashboard_page(user, ticker, data, action, explanation):
 
     conf_label, conf_pct, conf_subtitle = compute_signal_strength_and_confidence(explanation)
     risk_label, risk_text = classify_risk_level(data)
+    st.subheader("📊 Dashboard")
+    st.caption(
+        "Review the latest recommendation, confidence, risk signals, portfolio performance, and quick actions for the selected stock."
+    )
 
     render_hero_section(
         ticker=ticker,
