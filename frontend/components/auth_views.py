@@ -111,36 +111,71 @@ def show_landing_page():
 
         chart = (
             alt.Chart(chart_df)
-            .mark_line(point=True, strokeWidth=3)
+            .mark_line(
+                point=alt.OverlayMarkDef(filled=True, size=70),
+                strokeWidth=3,
+            )
             .encode(
-                x=alt.X("Month:Q", title="Month"),
-                y=alt.Y("Portfolio Value:Q", title="Portfolio value"),
+                x=alt.X(
+                    "Month:Q",
+                    title="Month",
+                    axis=alt.Axis(
+                        grid=True,
+                        gridColor="rgba(255,255,255,0.08)",
+                        domain=False,
+                        tickColor="rgba(255,255,255,0.15)",
+                        labelColor="#cbd5e1",
+                        titleColor="#94a3b8",
+                    ),
+                ),
+                y=alt.Y(
+                    "Portfolio Value:Q",
+                    title="Portfolio value",
+                    axis=alt.Axis(
+                        grid=True,
+                        gridColor="rgba(255,255,255,0.08)",
+                        domain=False,
+                        tickColor="rgba(255,255,255,0.15)",
+                        labelColor="#cbd5e1",
+                        titleColor="#94a3b8",
+                    ),
+                ),
                 color=alt.Color(
                     "Strategy:N",
                     scale=alt.Scale(
                         domain=["RL strategy", "Buy & Hold"],
                         range=["#f43f5e", "#38bdf8"],
                     ),
-                    legend=alt.Legend(title="Strategy", labelColor="#cbd5e1", titleColor="#f8fafc"),
+                    legend=alt.Legend(
+                        title="Strategy",
+                        orient="top-right",
+                        labelColor="#cbd5e1",
+                        titleColor="#f8fafc",
+                        fillColor="transparent",
+                        padding=8,
+                    ),
                 ),
-                tooltip=["Strategy", "Month", "Portfolio Value"],
+                tooltip=[
+                    alt.Tooltip("Strategy:N"),
+                    alt.Tooltip("Month:Q"),
+                    alt.Tooltip("Portfolio Value:Q"),
+                ],
             )
             .properties(height=320)
-            .configure_axis(
-                gridColor="rgba(255,255,255,0.08)",
-                domain=False,
-                tickColor="rgba(255,255,255,0.15)",
-                labelColor="#cbd5e1",
-                titleColor="#e2e8f0",
+            .configure_view(
+                stroke=None,
+                fill="transparent",
             )
-            .configure_view(stroke=None)
+            .configure(background="transparent")
+            .configure_axis(
+                labelFontSize=12,
+                titleFontSize=13,
+            )
             .configure_legend(
-                orient="top-right",
-                labelColor="#cbd5e1",
-                titleColor="#f8fafc",
+                labelFontSize=12,
+                titleFontSize=13,
             )
         )
-
         st.markdown(
             """
             <div class="card" style="padding:16px 18px;">
@@ -155,7 +190,7 @@ def show_landing_page():
             """,
             unsafe_allow_html=True,
         )
-        st.altair_chart(chart, use_container_width=True)
+        st.altair_chart(chart, use_container_width=True, theme=None)
         st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("---")
@@ -283,39 +318,90 @@ def show_landing_page():
         flow_nodes = pd.DataFrame(
             {
                 "label": ["Market data", "Indicators", "RL model", "Explanation", "Portfolio"],
-                "x": [1, 2, 3, 4, 4],
-                "y": [3, 3, 3, 4, 2],
+                "x": [1.25, 2.25, 3.25, 4.15, 4.15],
+                "y": [3.0, 3.0, 3.0, 3.9, 2.1],
             }
         )
 
         flow_lines = pd.DataFrame(
             {
-                "x": [1, 2, 2, 3, 3, 4, 3, 4],
-                "y": [3, 3, 3, 3, 3, 4, 3, 2],
+                "x": [1.25, 2.25, 2.25, 3.25, 3.25, 4.15, 3.25, 4.15],
+                "y": [3.0, 3.0, 3.0, 3.0, 3.0, 3.9, 3.0, 2.1],
                 "group": ["a", "a", "b", "b", "c", "c", "d", "d"],
             }
         )
 
+        base_x = alt.X(
+            "x:Q",
+            axis=None,
+            scale=alt.Scale(domain=[0.6, 5.0], nice=False, zero=False),
+        )
+        base_y = alt.Y(
+            "y:Q",
+            axis=None,
+            scale=alt.Scale(domain=[1.5, 4.3], nice=False, zero=False),
+        )
+
         lines = (
             alt.Chart(flow_lines)
-            .mark_line(strokeWidth=3, color="#34d399")
+            .mark_line(strokeWidth=4, color="#34d399", strokeCap="round")
             .encode(
-                x=alt.X("x:Q", axis=None),
-                y=alt.Y("y:Q", axis=None),
+                x=base_x,
+                y=base_y,
                 detail="group:N",
             )
         )
 
         nodes = (
             alt.Chart(flow_nodes)
-            .mark_circle(size=1400, color="#60a5fa")
-            .encode(x=alt.X("x:Q", axis=None), y=alt.Y("y:Q", axis=None))
+            .mark_circle(size=1800, color="#60a5fa", opacity=0.95)
+            .encode(
+                x=base_x,
+                y=base_y,
+            )
         )
 
-        labels = (
-            alt.Chart(flow_nodes)
-            .mark_text(color="#0f172a", dy=30, fontSize=12, fontWeight="bold")
-            .encode(x="x:Q", y="y:Q", text="label:N")
+        left_labels = (
+            alt.Chart(flow_nodes[flow_nodes["label"].isin(["Market data", "Indicators", "RL model"])])
+            .mark_text(
+                color="#e2e8f0",
+                dy=34,
+                fontSize=14,
+                fontWeight="bold",
+                align="center",
+            )
+            .encode(
+                x=base_x,
+                y=base_y,
+                text="label:N",
+            )
+        )
+
+        right_labels = (
+            alt.Chart(flow_nodes[flow_nodes["label"].isin(["Explanation", "Portfolio"])])
+            .mark_text(
+                color="#e2e8f0",
+                dx=34,
+                dy=4,
+                fontSize=14,
+                fontWeight="bold",
+                align="left",
+            )
+            .encode(
+                x=base_x,
+                y=base_y,
+                text="label:N",
+            )
+        )
+
+        flow_chart = (
+            (lines + nodes + left_labels + right_labels)
+            .properties(height=320)
+            .configure(background="transparent")
+            .configure_view(
+                strokeOpacity=0,
+                fill="transparent",
+            )
         )
 
         st.markdown(
@@ -331,10 +417,7 @@ def show_landing_page():
             """,
             unsafe_allow_html=True,
         )
-        st.altair_chart(
-            (lines + nodes + labels).properties(height=320).configure_view(stroke=None),
-            use_container_width=True,
-        )
+        st.altair_chart(flow_chart, use_container_width=True, theme=None)
         st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("---")
