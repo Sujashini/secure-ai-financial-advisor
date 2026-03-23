@@ -8,6 +8,13 @@ import torch.optim as optim
 
 
 class QNetwork(nn.Module):
+    """
+    Neural network used to approximate Q-values for each possible action.
+
+    The network takes the environment state as input and outputs
+    one Q-value per action, representing the expected future reward
+    of taking that action in the current state.
+    """
     def __init__(self, input_dim, output_dim):
         super().__init__()
         self.net = nn.Sequential(
@@ -23,6 +30,13 @@ class QNetwork(nn.Module):
 
 
 class DQNAgent:
+    """
+    This agent:
+    - selects actions using an epsilon-greedy policy,
+    - stores past experiences in a replay buffer,
+    - learns from random mini-batches of past transitions,
+    - maintains a target network for more stable training.
+    """
     def __init__(
         self,
         state_dim,
@@ -40,11 +54,13 @@ class DQNAgent:
         self.state_dim = state_dim
         self.action_dim = action_dim
 
+        # Discount factor and epsilon-greedy exploration parameters
         self.gamma = gamma
         self.epsilon = epsilon
         self.epsilon_min = epsilon_min
         self.epsilon_decay = epsilon_decay
 
+        # Training configuration
         self.batch_size = batch_size
         self.target_update_freq = target_update_freq
 
@@ -62,6 +78,19 @@ class DQNAgent:
         self.learn_step = 0
 
     def select_action(self, state):
+        """
+        Select an action using the epsilon-greedy strategy.
+
+        With probability epsilon, the agent explores by choosing
+        a random action. Otherwise, it exploits the learned policy
+        by selecting the action with the highest predicted Q-value.
+
+        Parameters:
+            state: Current environment state.
+
+        Returns:
+            int: Selected action index.
+        """
         if random.random() < self.epsilon:
             return random.randrange(self.action_dim)
 
@@ -72,11 +101,30 @@ class DQNAgent:
         return q_values.argmax().item()
 
     def store_transition(self, state, action, reward, next_state, done):
+        """
+        Store one experience tuple in the replay buffer.
+
+        Parameters:
+            state: Current state.
+            action: Action taken.
+            reward: Reward received.
+            next_state: Next environment state.
+            done: Whether the episode has terminated.
+        """
         self.replay_buffer.append(
             (state, action, reward, next_state, done)
         )
 
     def train_step(self):
+        """
+        Perform one DQN training step using a random mini-batch
+        sampled from the replay buffer.
+
+        Returns:
+            float | None:
+                Training loss value if an update was performed,
+                otherwise None if there are not enough samples yet.
+        """
         if len(self.replay_buffer) < self.batch_size:
             return None
 

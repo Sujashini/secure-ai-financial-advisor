@@ -18,6 +18,13 @@ class TradingEnv(gym.Env):
         data,
         initial_cash: float = 100_000,
     ):
+        """
+        Initialise the trading environment.
+
+        Parameters:
+            data: Preprocessed stock market data including technical indicators.
+            initial_cash (float): Starting cash balance for the trading episode.
+        """
         super().__init__()
 
         self.data = data.reset_index(drop=True)
@@ -41,6 +48,14 @@ class TradingEnv(gym.Env):
         )
 
     def reset(self, seed=None, options=None):
+        """
+        Reset the environment to the initial state for a new episode.
+
+        Returns:
+            tuple:
+                observation (np.ndarray): Initial observation vector.
+                info (dict): Additional environment information.
+        """
         super().reset(seed=seed)
 
         self.current_step = 0
@@ -51,6 +66,16 @@ class TradingEnv(gym.Env):
         return self._get_observation(), {}
 
     def _get_observation(self):
+        """
+        Construct the current observation vector.
+
+        The observation consists of:
+        - all feature values for the current timestep except the date,
+        - a position flag showing whether the agent currently holds a stock.
+
+        Returns:
+            np.ndarray: Observation vector in float32 format.
+        """
         features = self.data.iloc[self.current_step].drop("date").values
         position_flag = 1 if self.shares_held > 0 else 0
 
@@ -58,9 +83,32 @@ class TradingEnv(gym.Env):
         return obs
 
     def _get_portfolio_value(self, price):
+        """
+        Compute total portfolio value at a given price.
+
+        Parameters:
+            price: Current stock price.
+
+        Returns:
+            float: Cash balance plus market value of held shares.
+        """
         return self.cash + self.shares_held * price
 
     def step(self, action):
+        """
+        Execute one environment step based on the selected action.
+
+        Parameters:
+            action (int): Action chosen by the agent.
+
+        Returns:
+            tuple:
+                obs (np.ndarray): Next observation.
+                reward (float): Reward after taking the action.
+                done (bool): Whether the episode has ended.
+                truncated (bool): Whether the episode was truncated early.
+                info (dict): Additional portfolio information.
+        """
         done = False
         reward = 0.0
 

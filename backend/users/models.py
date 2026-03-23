@@ -24,12 +24,22 @@ engine = create_engine(
     connect_args={"check_same_thread": False},
 )
 
+# Create a session factory for database operations
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
 
 
 class User(Base):
+    """
+    Database model representing an application user.
+
+    Stores:
+    - login credentials,
+    - account lock status,
+    - failed login attempts,
+    - linked portfolio positions.
+    """
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -44,6 +54,16 @@ class User(Base):
 
 
 class PortfolioPosition(Base):
+    """
+    Database model representing a stock holding in a user's portfolio.
+
+    Each record stores:
+    - the user who owns the position,
+    - the stock ticker,
+    - number of shares held,
+    - average purchase price,
+    - creation and update timestamps.
+    """
     __tablename__ = "portfolio_positions"
 
     id = Column(Integer, primary_key=True, index=True)

@@ -9,6 +9,8 @@ from backend.LLM.chat_store import (
     clear_chat_history,
 )
 
+# User-friendly names used to translate technical feature names
+# into simpler language for non-technical users
 FRIENDLY_FEATURE_NAMES = {
     "return_1": "very recent price movement",
     "sma_10": "short-term price trend",
@@ -31,6 +33,15 @@ def friendly_feature_name(feature: str) -> str:
 
 
 def _format_message(text: str) -> str:
+    """
+    Clean and format chat text for safe HTML display in Streamlit.
+
+    This function:
+    - removes extra whitespace,
+    - reduces excessive blank lines,
+    - escapes HTML characters for safety,
+    - wraps each paragraph in styled HTML blocks.
+    """
     if not text:
         return ""
 
@@ -46,6 +57,12 @@ def _format_message(text: str) -> str:
 
 
 def _build_quick_questions(action_text, risk_label, pos_features):
+    """
+    Generate contextual quick-question buttons based on:
+    - current model action,
+    - risk level,
+    - strongest positive signals.
+    """
     quick_questions = [
         "Why is the model recommending this action for this stock?",
         "What are the main risks for this stock according to the model?",
@@ -72,6 +89,9 @@ def _build_quick_questions(action_text, risk_label, pos_features):
 
 
 def _risk_badge_color(risk_label: str) -> str:
+    """
+    Return a display colour for the risk badge.
+    """
     label = str(risk_label).lower()
     if label == "high":
         return "#ef4444"
@@ -81,6 +101,14 @@ def _risk_badge_color(risk_label: str) -> str:
 
 
 def _render_context_card(ticker, action_text, conf_pct, risk_label, pos_text, neg_text):
+    """
+    Render the top context card summarising:
+    - selected ticker,
+    - current recommendation,
+    - confidence,
+    - risk,
+    - main positive and caution signals.
+    """
     risk_color = _risk_badge_color(risk_label)
 
     st.markdown(
@@ -144,6 +172,10 @@ def _render_context_card(ticker, action_text, conf_pct, risk_label, pos_text, ne
 
 
 def _render_empty_state():
+    """
+    Render the default empty-state message shown
+    when there is no prior chat history.
+    """
     st.markdown(
         """
         <div class="chat-bot" style="max-width:82%;">
@@ -160,6 +192,14 @@ def _render_empty_state():
 
 
 def render_chat_page(user, ticker, action_text, conf_pct, risk_label, explanation):
+    """
+    Render the main chat page where the user can:
+    - view current recommendation context,
+    - read past conversation history,
+    - ask quick questions,
+    - submit custom questions,
+    - clear or summarise the conversation.
+    """
     st.subheader("💬 Chat with the Advisor")
 
     st.info(
@@ -217,6 +257,7 @@ def render_chat_page(user, ticker, action_text, conf_pct, risk_label, explanatio
 
     st.divider()
 
+    # Load recent chat history for the selected user and ticker
     chat_history = load_chat_history(user_id=user.id, ticker=ticker, limit=20)
 
     convo_title_col, convo_btn_col = st.columns([0.72, 0.28])
@@ -232,7 +273,7 @@ def render_chat_page(user, ticker, action_text, conf_pct, risk_label, explanatio
             disabled=summarize_disabled,
             use_container_width=True,
         )
-
+    # Inform the user when summarisation is not yet available
     if summarize_disabled:
         st.caption(
             f"Summaries become available after a longer conversation "
@@ -302,7 +343,7 @@ def render_chat_page(user, ticker, action_text, conf_pct, risk_label, explanatio
         "Buy and Hold, which keeps the stock throughout the period, and an RSI strategy, "
         "which uses a basic momentum-style technical signal. These comparisons are historical only."
     )
-
+    # Convert percentage confidence into model-style decimal confidence
     rl_confidence = conf_pct / 100.0 if conf_pct is not None else None
     quick_questions = _build_quick_questions(action_text, risk_label, pos_features)
 
@@ -342,7 +383,8 @@ def render_chat_page(user, ticker, action_text, conf_pct, risk_label, explanatio
         clear_chat_history(user.id, ticker)
         st.success("Conversation cleared for this stock.")
         st.rerun()
-
+        
+    # Decide which question to send to the LLM
     question_to_send = None
     if quick_question is not None:
         question_to_send = quick_question

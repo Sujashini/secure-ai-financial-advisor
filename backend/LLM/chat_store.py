@@ -24,6 +24,7 @@ def init_chat_db():
 
 
 def save_message(user_id, ticker, role, content):
+    """ Save a single chat message into the database."""
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
     cur.execute(
@@ -40,8 +41,6 @@ def save_message(user_id, ticker, role, content):
 def load_chat_history(user_id, ticker, limit=50):
     """
     Load the most recent messages first, then return them in display order.
-    This is better for long conversations because the LLM usually benefits more
-    from recent context than very old context.
     """
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -68,6 +67,9 @@ def load_chat_history(user_id, ticker, limit=50):
 
 
 def clear_chat_history(user_id, ticker):
+    """
+    Delete all chat history for a specific user and ticker.
+    """
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
     cur.execute(

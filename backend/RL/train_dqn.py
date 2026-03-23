@@ -7,9 +7,25 @@ from backend.RL.dqn_agent import DQNAgent
 
 
 def train():
+    """
+    Train a DQN trading agent for a single stock ticker.
+
+    This script:
+    - loads historical market data,
+    - generates technical indicators,
+    - creates the trading environment,
+    - trains the DQN agent over multiple episodes,
+    - saves the trained model to disk.
+    """
+    # -------------------------
+    # Load and prepare training data
+    # -------------------------
     data = fetch_stock_data("AAPL")
     data = add_technical_indicators(data)
 
+    # -------------------------
+    # Create the trading environment
+    # -------------------------
     env = TradingEnv(data)
 
     state_dim = env.observation_space.shape[0]
@@ -19,6 +35,9 @@ def train():
 
     episodes = 10  # keep small for now
 
+    # -------------------------
+    # Training loop
+    # -------------------------
     for episode in range(episodes):
         state, _ = env.reset()
         done = False

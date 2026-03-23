@@ -40,6 +40,10 @@ def friendly_feature_name(feature: str) -> str:
 
 
 def build_factor_summary(explanation: dict) -> str:
+    """
+    Build a short human-readable summary of the strongest
+    positive explanation factors.
+    """
     pos = explanation.get("top_positive", [])[:3]
     if not pos:
         return "mixed signals across recent price, trend, and momentum indicators"
@@ -53,6 +57,15 @@ def build_factor_summary(explanation: dict) -> str:
 
 
 def render_dashboard_page(user, ticker, data, action, explanation):
+    """
+    Render the main dashboard page, including:
+    - current recommendation and market context,
+    - plain-language explanation summary,
+    - portfolio performance chart,
+    - trend indicator chart,
+    - action panel,
+    - watchlist.
+    """
     action_text = ACTION_MAP.get(action, "HOLD")
     portfolio = get_portfolio(user.id)
     current_price, price_change_pct = get_latest_price_and_change(ticker)
@@ -78,6 +91,7 @@ def render_dashboard_page(user, ticker, data, action, explanation):
         price_change_pct=price_change_pct,
     )
 
+    # Expandable plain-language explanation section
     with st.expander("Why this suggestion? (plain explanation)", expanded=False):
         pos = explanation.get("top_positive", [])
         neg = explanation.get("top_negative", [])
@@ -108,6 +122,7 @@ def render_dashboard_page(user, ticker, data, action, explanation):
             "They help explain the recommendation, but they do not guarantee future performance."
         )
 
+    # Show the latest available market date in the dataset
     latest_date = pd.to_datetime(data["date"]).iloc[-1]
     st.caption(
         f"Market data for {ticker} is shown up to {latest_date.date()} "

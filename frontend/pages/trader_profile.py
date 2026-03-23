@@ -4,6 +4,10 @@ from backend.users.service import change_password
 
 
 def _profile_defaults():
+    """
+    Return the default trader profile settings used
+    when the user has not saved any custom preferences yet.
+    """
     return {
         "risk_tolerance": "Moderate",
         "trading_style": "Swing Trading",
@@ -19,6 +23,10 @@ def _profile_defaults():
 
 
 def _apply_profile_defaults():
+    """
+    Apply default trader profile settings into Streamlit session state
+    for any keys that do not yet exist.
+    """
     defaults = _profile_defaults()
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -26,6 +34,10 @@ def _apply_profile_defaults():
 
 
 def _advisor_mode_text(risk, style, horizon):
+    """
+    Build a plain-English description of how SAFE-Bot
+    should frame recommendations based on the selected profile.
+    """
     if risk == "Conservative":
         tone = "more cautious"
     elif risk == "Aggressive":
@@ -41,6 +53,10 @@ def _advisor_mode_text(risk, style, horizon):
 
 
 def _profile_summary_card():
+    """
+    Render a summary card showing the user's current
+    trader profile settings at a glance.
+    """
     risk = st.session_state.get("risk_tolerance", "Moderate")
     style = st.session_state.get("trading_style", "Swing Trading")
     horizon = st.session_state.get("investment_horizon", "Medium-term")
@@ -91,6 +107,10 @@ def _profile_summary_card():
 
 
 def _preference_help_card():
+    """
+    Render a short explanatory card describing how
+    profile preferences affect the behaviour of SAFE-Bot.
+    """
     st.markdown(
         """
         <div class="card" style="margin-top:0.5rem;">
@@ -107,6 +127,10 @@ def _preference_help_card():
 
 
 def _preset_definitions():
+    """
+    Render a short explanatory card describing how
+    profile preferences affect the behaviour of SAFE-Bot.
+    """
     return {
         "Balanced learner": {
             "risk_tolerance": "Moderate",
@@ -148,6 +172,10 @@ def _preset_definitions():
 
 
 def _apply_preset(name: str):
+    """
+    Apply one of the predefined profile presets
+    into session state and refresh the page.
+    """
     preset = _preset_definitions()[name]
     for key, value in preset.items():
         st.session_state[key] = value
@@ -156,6 +184,17 @@ def _apply_preset(name: str):
 
 
 def render_trader_profile_page(user):
+    """
+    Render the trader profile page.
+
+    This page allows the user to:
+    - review their current profile summary,
+    - apply a preset trading profile,
+    - update account password,
+    - customise trading preferences,
+    - choose display and explanation options,
+    - save or reset profile settings.
+    """
     _apply_profile_defaults()
     defaults = _profile_defaults()
 

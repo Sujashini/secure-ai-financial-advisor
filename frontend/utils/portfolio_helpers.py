@@ -8,6 +8,17 @@ from frontend.utils.constants import TECHY_TICKERS
 
 
 def get_latest_price_and_change(ticker: str):
+    """
+    Classify current stock risk level based on recent volatility.
+
+    Parameters:
+        data (pd.DataFrame): Market data containing volatility_10.
+
+    Returns:
+        tuple:
+            risk_label (str): Low / Medium / High / Unknown
+            risk_text (str): Plain-English explanation
+    """
     data = fetch_stock_data(ticker)
     data = add_technical_indicators(data)
     data["date"] = pd.to_datetime(data["date"])
@@ -23,6 +34,17 @@ def get_latest_price_and_change(ticker: str):
 
 
 def compute_portfolio_unrealised(portfolio):
+    """
+    Fetch the latest available stock price and daily percentage change.
+
+    Parameters:
+        ticker (str): Stock ticker symbol.
+
+    Returns:
+        tuple:
+            current_price (float): Latest closing price
+            change_pct (float | None): Daily percentage change
+    """
     if not portfolio:
         return 0.0, 0.0, 0.0
 
@@ -46,6 +68,18 @@ def compute_portfolio_unrealised(portfolio):
 
 
 def compute_realised_pl(trade_history):
+    """
+    Compute total portfolio value, cost basis, and unrealised profit/loss.
+
+    Parameters:
+        portfolio: List of user portfolio positions.
+
+    Returns:
+        tuple:
+            total_value (float)
+            cost_basis (float)
+            unrealised_pl (float)
+    """
     realised = 0.0
     for trade in trade_history:
         if trade["action"] in ("SELL", "SELL_ALL"):
@@ -56,9 +90,13 @@ def compute_realised_pl(trade_history):
 
 def build_portfolio_positions(portfolio):
     """
-    Returns enriched position rows for UI display:
-    ticker, shares, avg_price, current_price, daily_change_pct, position_value,
-    unrealised_pl, unrealised_pl_pct, weight
+    Compute realised profit/loss from recorded sell transactions.
+
+    Parameters:
+        trade_history (list): Session trade history records.
+
+    Returns:
+        float: Total realised profit/loss
     """
     if not portfolio:
         return []
@@ -108,6 +146,9 @@ def build_portfolio_positions(portfolio):
 
 
 def build_holdings_dataframe(portfolio):
+    """
+    Build a formatted holdings DataFrame for table display in the UI.
+    """
     rows = build_portfolio_positions(portfolio)
     if not rows:
         return pd.DataFrame()
@@ -248,6 +289,13 @@ def generate_portfolio_alerts(portfolio):
 
 
 def generate_portfolio_takeaway(portfolio):
+    """
+    Generate structured portfolio alerts for concentration,
+    diversification, and strong winners/losers.
+
+    Returns:
+        list[dict]: Alerts with severity, title, and message
+    """
     positions = build_portfolio_positions(portfolio)
 
     if not positions:
@@ -292,6 +340,10 @@ def generate_portfolio_takeaway(portfolio):
 
 
 def generate_suggested_next_steps(portfolio):
+    """
+    Generate a short headline and detail summary describing
+    the current portfolio state.
+    """
     positions = build_portfolio_positions(portfolio)
     steps = []
 
@@ -336,6 +388,10 @@ def generate_suggested_next_steps(portfolio):
 
 
 def add_drawdowns(equity_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Generate a short list of suggested next actions based on
+    the current portfolio condition.
+    """
     df = equity_df.copy().sort_values("date")
     df["peak_ai"] = df["equity_ai"].cummax()
     df["peak_bh"] = df["equity_bh"].cummax()
@@ -345,6 +401,15 @@ def add_drawdowns(equity_df: pd.DataFrame) -> pd.DataFrame:
 
 
 def compute_risk_metrics_for_ticker(ticker: str):
+    """
+    Compute historical risk metrics for a specific ticker using
+    the RL backtest equity curve.
+
+    Returns:
+        tuple:
+            result (dict | None): Historical metrics
+            err (str | None): Error message if calculation fails
+    """
     try:
         equity_df, metrics = backtest_ticker(
             ticker=ticker,
@@ -377,6 +442,10 @@ def compute_risk_metrics_for_ticker(ticker: str):
 
 
 def explain_risk_metrics(metrics: dict):
+    """
+    Generate plain-English explanations for return, drawdown,
+    and Sharpe ratio values.
+    """
     if not metrics:
         return {}
 

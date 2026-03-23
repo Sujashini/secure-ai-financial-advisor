@@ -9,6 +9,7 @@ from backend.data.features import add_technical_indicators
 from frontend.app import add_drawdowns, simulate_rsi_strategy_equity  # or copy these helpers here
 
 TICKERS = ["AAPL", "MSFT", "NVDA"]
+# Common starting capital for all strategies
 INITIAL_CASH = 100_000.0
 MODELS_DIR = os.path.join("models")
 
@@ -36,9 +37,21 @@ def compute_metrics_for_equity(equity_series: pd.Series):
     return total_return, max_dd, sharpe
 
 def run_for_ticker(ticker: str):
+    """
+    Run evaluation for a single stock ticker across:
+    - reinforcement learning strategy,
+    - buy-and-hold strategy,
+    - RSI-based baseline strategy.
+
+    Parameters:
+        ticker (str): Stock ticker symbol.
+
+    Returns:
+        dict: Summary metrics for all strategies for the given ticker.
+    """
     model_path = os.path.join(MODELS_DIR, f"dqn_{ticker}.pth")
 
-    # 1) RL vs Buy & Hold from your existing backtest
+    # 1) RL vs Buy & Hold from existing backtest
     equity_df, metrics = backtest_ticker(
         ticker=ticker,
         model_path=model_path,
@@ -68,7 +81,7 @@ def run_for_ticker(ticker: str):
         res[f"{label}_max_drawdown"] = max_dd
         res[f"{label}_sharpe"] = sharpe
 
-    # Save per-ticker equity curve for plotting later (optional)
+    # Save per-ticker equity curve for plotting later 
     out_dir = os.path.join("backend", "Evaluation", "results")
     os.makedirs(out_dir, exist_ok=True)
     merged.to_csv(os.path.join(out_dir, f"equity_curves_{ticker}.csv"), index=False)

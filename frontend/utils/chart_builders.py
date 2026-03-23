@@ -16,6 +16,10 @@ from frontend.utils.portfolio_helpers import get_latest_price_and_change
 
 
 def apply_dark_chart_theme(chart: alt.Chart) -> alt.Chart:
+    """
+    Apply a consistent dark visual theme to Altair charts
+    so they match the application's overall interface style.
+    """
     return (
         chart
         .configure(
@@ -53,6 +57,16 @@ def apply_dark_chart_theme(chart: alt.Chart) -> alt.Chart:
 
 
 def build_allocation_chart(portfolio):
+    """
+    Build a portfolio allocation pie chart based on
+    the latest available market value of each holding.
+
+    Parameters:
+        portfolio: User portfolio positions.
+
+    Returns:
+        Altair chart or None if no valid data is available.
+    """
     if not portfolio:
         return None
 
@@ -99,6 +113,16 @@ def build_allocation_chart(portfolio):
 
 
 def build_indicator_chart(data: pd.DataFrame, selected_series=None):
+    """
+    Build a portfolio allocation pie chart based on
+    the latest available market value of each holding.
+
+    Parameters:
+        portfolio: User portfolio positions.
+
+    Returns:
+        Altair chart or None if no valid data is available.
+    """
     df = data.copy()
     df["date"] = pd.to_datetime(df["date"])
 
@@ -147,6 +171,17 @@ def build_indicator_chart(data: pd.DataFrame, selected_series=None):
 
 
 def build_shap_bar_chart(explanation: dict):
+    """
+    Build a bar chart showing positive and negative
+    feature contributions from the explanation output.
+
+    Parameters:
+        explanation (dict): Explanation summary containing
+            top_positive and top_negative features.
+
+    Returns:
+        Altair chart or None if no explanation data exists.
+    """
     rows = []
 
     for item in explanation.get("top_positive", []):
@@ -200,6 +235,17 @@ def build_shap_bar_chart(explanation: dict):
 
 
 def build_price_action_chart(data: pd.DataFrame, agent: DQNAgent):
+    """
+    Build a chart showing stock price over time together with
+    the AI agent's selected trading actions.
+
+    Parameters:
+        data (pd.DataFrame): Prepared market dataset.
+        agent (DQNAgent): Trained trading agent.
+
+    Returns:
+        Altair chart or None if no trajectory data is produced.
+    """
     env = TradingEnv(data)
     state, _ = env.reset()
 
@@ -256,6 +302,18 @@ def build_price_action_chart(data: pd.DataFrame, agent: DQNAgent):
 
 
 def build_portfolio_performance_chart(portfolio, freq_code="M"):
+    """
+    Build a historical portfolio value chart by combining
+    all portfolio holdings using market price history.
+
+    Parameters:
+        portfolio: User portfolio positions.
+        freq_code (str): Resampling frequency
+            ("M" = monthly, "Q" = quarterly, "Y" = yearly).
+
+    Returns:
+        Altair chart or None if insufficient data is available.
+    """
     if not portfolio:
         return None
 
@@ -330,6 +388,18 @@ def build_portfolio_performance_chart(portfolio, freq_code="M"):
 
 
 def simulate_rsi_strategy_equity(data: pd.DataFrame, initial_cash=100_000.0):
+    """
+    Build a historical portfolio value chart by combining
+    all portfolio holdings using market price history.
+
+    Parameters:
+        portfolio: User portfolio positions.
+        freq_code (str): Resampling frequency
+            ("M" = monthly, "Q" = quarterly, "Y" = yearly).
+
+    Returns:
+        Altair chart or None if insufficient data is available.
+    """
     df = data.copy()
     df["date"] = pd.to_datetime(df["date"])
 
@@ -358,6 +428,18 @@ def simulate_rsi_strategy_equity(data: pd.DataFrame, initial_cash=100_000.0):
 
 
 def build_strategy_comparison_chart(ticker: str):
+    """
+    Build a historical performance comparison chart between:
+    - the RL strategy,
+    - buy-and-hold,
+    - RSI baseline strategy.
+
+    Parameters:
+        ticker (str): Stock ticker symbol.
+
+    Returns:
+        Altair chart or None if comparison data cannot be loaded.
+    """
     try:
         equity_df, _ = backtest_ticker(
             ticker=ticker,

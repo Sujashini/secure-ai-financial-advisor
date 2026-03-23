@@ -3,14 +3,23 @@ import numpy as np
 
 
 def compute_rsi(series: pd.Series, window: int = 14) -> pd.Series:
+    """
+    Compute the Relative Strength Index (RSI) for a price series.
+
+    RSI is a momentum indicator that measures the speed and magnitude
+    of recent price changes. Values typically range from 0 to 100.
+    """
+    # Calculate day-to-day price changes
     delta = series.diff()
 
+    # Separate positive and negative movements
     gain = delta.where(delta > 0, 0.0)
     loss = -delta.where(delta < 0, 0.0)
 
+    # Compute rolling average gains and losses
     avg_gain = gain.rolling(window).mean()
     avg_loss = loss.rolling(window).mean()
-
+    # Compute Relative Strength (RS) and RSI
     rs = avg_gain / avg_loss
     rsi = 100 - (100 / (1 + rs))
 

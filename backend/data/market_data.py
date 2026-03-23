@@ -10,6 +10,7 @@ def fetch_stock_data(
     """
     Fetch historical OHLCV data for a given stock ticker.
     """
+    # Download historical stock data from Yahoo Finance
     df = yf.download(
         ticker,
         start=start,
@@ -25,6 +26,7 @@ def fetch_stock_data(
     df = df.reset_index()
 
     # Flatten MultiIndex columns if present
+    # This can happen depending on how yfinance structures the output
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = [
             col[0].lower() if isinstance(col, tuple) else col.lower()

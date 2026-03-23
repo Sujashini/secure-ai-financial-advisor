@@ -40,6 +40,9 @@ def friendly_feature_name(feature: str) -> str:
 
 
 def render_signal_card(title, body, helper=None):
+    """
+    Render a small summary card showing one key explanation signal.
+    """
     helper_html = (
         f'<div style="color:#94a3b8;font-size:0.88rem;line-height:1.6;margin-top:0.4rem;">{helper}</div>'
         if helper
@@ -61,6 +64,13 @@ def render_signal_card(title, body, helper=None):
 
 
 def render_takeaway_banner(ticker, action_text, conf_pct, risk_label, conf_subtitle, risk_text):
+    """
+    Render the top takeaway banner summarising:
+    - the recommendation,
+    - confidence,
+    - risk,
+    - short natural-language takeaway.
+    """
     conf_class = get_confidence_pill_class(
         "High" if conf_pct >= 66 else "Medium" if conf_pct >= 33 else "Low"
     )
@@ -110,6 +120,10 @@ def render_takeaway_banner(ticker, action_text, conf_pct, risk_label, conf_subti
 
 
 def render_reason_chip(feature_name, value, positive=True):
+    """
+    Render a compact card showing one explanation feature
+    and whether it supported or opposed the recommendation.
+    """
     pill_class = "pill pill-green" if positive else "pill pill-red"
     st.markdown(
         f"""
@@ -125,6 +139,9 @@ def render_reason_chip(feature_name, value, positive=True):
 
 
 def render_explanation_paragraphs(paragraphs):
+    """
+    Render multiple explanation paragraphs inside a styled content card.
+    """
     html_blocks = ""
     for p in paragraphs:
         html_blocks += f"""

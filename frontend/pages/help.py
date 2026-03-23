@@ -57,6 +57,10 @@ def _mini_card(title: str, body: str):
 def render_help_page():
     st.subheader("❓ Help / Glossary")
 
+    # -------------------------
+    # Introductory purpose section
+    # -------------------------
+
     _section_card(
         "What this page is for",
         """
@@ -66,6 +70,9 @@ SAFE-Bot is an educational prototype focused on explainability and decision supp
         """,
         icon="🧭",
     )
+    # -------------------------
+    # Recommendation signals
+    # -------------------------
 
     st.markdown("### Understanding recommendation signals")
 
@@ -104,6 +111,9 @@ Signals may be mixed, weak, or uncertain, which can happen when the market is no
     st.warning(
         "These signals are for learning and transparency only. They should not be treated as personal financial advice."
     )
+    # -------------------------
+    # Usage guidance
+    # -------------------------
 
     st.markdown("### How to use SAFE-Bot")
 
@@ -138,6 +148,9 @@ The Portfolio page helps you understand allocation, concentration risk, and hist
 The Chat page helps you ask follow-up questions in simpler language.
             """,
         )
+    # -------------------------
+    # Indicator glossary
+    # -------------------------
 
     st.markdown("### Glossary of key indicators")
 
@@ -180,6 +193,9 @@ Trend indicators describe general direction over time.
 Momentum indicators describe how strong or weak recent movement is. SAFE-Bot uses both so it does not rely on only one type of signal.
             """,
         )
+    # -------------------------
+    # Backtest metric glossary
+    # -------------------------
 
     st.markdown("### Backtest and risk metrics")
 
@@ -214,6 +230,9 @@ The Sharpe ratio compares return against volatility.
 A higher Sharpe ratio usually means the strategy delivered better return for the amount of risk taken.
             """,
         )
+    # -------------------------
+    # Prototype limits and value
+    # -------------------------
 
     st.markdown("### Limits of this prototype")
 

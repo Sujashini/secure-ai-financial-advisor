@@ -5,6 +5,14 @@ from frontend.utils.constants import REMEMBER_ME_PATH
 
 
 def save_remember_me(user_id: int, remember: bool) -> None:
+    """
+    Save or remove the local remember-me file used for lightweight
+    login persistence in the prototype.
+
+    Parameters:
+        user_id (int): ID of the logged-in user.
+        remember (bool): Whether the user chose to stay remembered.
+    """
     if remember:
         data = {"remember": True, "user_id": user_id}
         try:
@@ -21,6 +29,25 @@ def save_remember_me(user_id: int, remember: bool) -> None:
 
 
 def evaluate_password_strength(password: str):
+    """
+    Evaluate password strength using simple heuristic checks.
+
+    The score considers:
+    - total length,
+    - presence of lowercase letters,
+    - uppercase letters,
+    - digits,
+    - symbols.
+
+    Parameters:
+        password (str): Password entered by the user.
+
+    Returns:
+        tuple:
+            label (str): Human-readable strength category.
+            norm (float): Normalised score between 0 and 1.
+            help_text (str): Guidance message for the user.
+    """
     if not password:
         return "Too short", 0.0, "Enter a password to see the strength."
 
@@ -60,6 +87,15 @@ def evaluate_password_strength(password: str):
 
 
 def is_valid_email(email: str) -> bool:
+    """
+    Perform a simple email-format validation check.
+
+    Parameters:
+        email (str): Email address entered by the user.
+
+    Returns:
+        bool: True if the email matches a basic valid format, otherwise False.
+    """
     if not email:
         return False
     return bool(re.match(r"[^@]+@[^@]+\.[^@]+", email))

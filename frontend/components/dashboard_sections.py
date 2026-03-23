@@ -11,6 +11,8 @@ from frontend.utils.portfolio_helpers import (
 )
 from frontend.utils.constants import WATCHLIST_TICKERS, COMPANY_NAMES
 
+# Friendly display names used to make technical features easier for
+# non-technical users to understand in the interface
 FRIENDLY_FEATURE_NAMES = {
     "return_1": "very recent price movement",
     "sma_10": "short-term price trend",
@@ -61,12 +63,23 @@ def render_hero_section(
     current_price=None,
     price_change_pct=None,
 ):
+    """
+    Render the main dashboard hero card showing:
+    - selected ticker,
+    - AI recommendation,
+    - confidence and risk badges,
+    - current market price,
+    - short explanation summary.
+    """
     pos = explanation.get("top_positive", [])
     top_features = [friendly_feature_name(item["feature"]) for item in pos[:3]]
 
     if factor_summary is None:
         factor_summary = ", ".join(top_features) if top_features else "mixed signals"
 
+    # -------------------------
+    # Build price display block
+    # -------------------------
     price_html = ""
     if current_price is not None:
         change_html = ""
@@ -109,6 +122,17 @@ def render_hero_section(
 
 
 def render_trade_panel(user, ticker, action_text, current_price, portfolio):
+    """
+    Render the simulated trading panel for the selected stock.
+
+    Depending on the current recommendation, this section allows the user to:
+    - buy shares,
+    - sell shares,
+    - or simply review the hold recommendation.
+
+    Executed trades are stored in session state as part of a simulated
+    portfolio experience.
+    """
     st.markdown('<div class="section-title">Act on this recommendation</div>', unsafe_allow_html=True)
     st.markdown(
         '<div class="section-caption">You can simulate a simple trade here for the selected stock.</div>',
@@ -117,6 +141,10 @@ def render_trade_panel(user, ticker, action_text, current_price, portfolio):
 
     st.session_state.setdefault("trade_history", [])
 
+
+    # -------------------------
+    # BUY workflow
+    # -------------------------
     if action_text == "BUY":
         trade_col1, trade_col2 = st.columns([3, 1])
 
@@ -159,6 +187,9 @@ def render_trade_panel(user, ticker, action_text, current_price, portfolio):
             "💡 The AI currently prefers buying. This simulated trade uses the latest available market price."
         )
 
+    # -------------------------
+    # SELL workflow
+    # -------------------------
     elif action_text == "SELL":
         owned_position = next((p for p in portfolio if p.ticker == ticker), None)
 
@@ -206,7 +237,9 @@ def render_trade_panel(user, ticker, action_text, current_price, portfolio):
                     except Exception as e:
                         st.error("Could not complete sale.")
                         st.caption(str(e))
-
+            # -------------------------
+            # HOLD workflow
+            # -------------------------
             st.info(
                 "💡 The AI currently prefers selling. This can help reduce exposure when caution signals are stronger."
             )
@@ -221,6 +254,10 @@ def render_trade_panel(user, ticker, action_text, current_price, portfolio):
 
 
 def render_portfolio_snapshot(user, portfolio):
+    """
+    Render a visual snapshot of the user's current portfolio holdings,
+    including live price and daily percentage movement where available.
+    """
     st.markdown('<div class="section-title">Portfolio snapshot</div>', unsafe_allow_html=True)
 
     if not portfolio:
@@ -300,6 +337,14 @@ def render_portfolio_snapshot(user, portfolio):
 
 
 def render_account_summary(portfolio):
+    """
+    Render account-level summary metrics for the user's portfolio,
+    including:
+    - total portfolio value,
+    - unrealised profit/loss,
+    - realised profit/loss,
+    - basic portfolio alerts.
+    """
     st.markdown('<div class="section-title">Account summary</div>', unsafe_allow_html=True)
 
     if not portfolio:
@@ -331,6 +376,10 @@ def render_account_summary(portfolio):
 
 
 def render_watchlist(selected_ticker=None):
+    """
+    Render the user's watchlist using a set of predefined stock tickers,
+    together with latest price and daily movement information.
+    """
     st.markdown('<div class="section-title">My watchlist</div>', unsafe_allow_html=True)
     st.caption("Daily move for selected stocks.")
 

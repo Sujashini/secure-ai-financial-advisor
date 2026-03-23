@@ -12,6 +12,17 @@ from backend.RL.dqn_agent import DQNAgent
 
 
 class SurrogateExplainer:
+    """
+    Surrogate explainer used to interpret the behaviour of the trained DQN agent.
+
+    Instead of explaining the neural network directly, this class:
+    - collects state-action examples from the trained agent,
+    - trains a simpler surrogate model (Random Forest),
+    - applies SHAP to explain the surrogate model's predictions.
+
+    This makes the reinforcement learning policy more interpretable
+    for reporting and user-facing explanation purposes.
+    """
     def __init__(
         self,
         surrogate_model: RandomForestClassifier,
@@ -135,7 +146,7 @@ class SurrogateExplainer:
                 for name, val in top_any
             ]
             top_negative = []  # none strictly negative in this case
-         # 👉 Re-add the summary dict here
+         # Re-add the summary dict here
         summary = {
             "predicted_action": int(predicted_action),
             "top_positive": top_positive,

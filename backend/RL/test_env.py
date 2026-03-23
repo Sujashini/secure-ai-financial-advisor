@@ -3,16 +3,24 @@ from backend.data.features import add_technical_indicators
 from backend.RL.trading_env import TradingEnv
 
 
-
+# -------------------------
+# Load and prepare market data
+# -------------------------
 data = fetch_stock_data("AAPL")
 data = add_technical_indicators(data)
 
+# -------------------------
+# Create trading environment
+# -------------------------
 env = TradingEnv(data)
 
 obs, _ = env.reset()
 
 print("Initial observation shape:", obs.shape)
 
+# -------------------------
+# Run a simple random-action test
+# -------------------------
 done = False
 while not done:
     action = env.action_space.sample()

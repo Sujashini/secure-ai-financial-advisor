@@ -3,7 +3,7 @@
 from typing import Optional, List
 
 from sqlalchemy.orm import Session
-from passlib.hash import bcrypt  # 👈 for hashing & verifying passwords
+from passlib.hash import bcrypt  # for hashing & verifying passwords
 
 from backend.users.models import (
     SessionLocal,
@@ -12,7 +12,10 @@ from backend.users.models import (
 )
 
 class AccountLockedError(Exception):
-    """Raised when trying to log in to a locked account."""
+    """
+    Custom exception raised when a login is attempted
+    on an account that has already been locked.
+    """
     pass
 
 # -------- Session helper -------- #
@@ -77,29 +80,27 @@ def authenticate_user(email: str, password: str) -> Optional[User]:
     try:
         user = db.query(User).filter(User.email == email).first()
         if not user:
-            # No such email – don't reveal this to the caller
             return None
 
-        # If the account is already locked, don't even check the password
+        # If the account is already locked, don't check the password
         if getattr(user, "is_locked", False):
             raise AccountLockedError(
                 "This account has been locked due to too many failed login attempts."
             )
 
-        # 🔐 Check hash instead of plain-text comparison
+        #  Check hash instead of plain-text comparison
         try:
             if bcrypt.verify(password, user.password):
                 # Successful login -> reset failed attempts counter
                 user.failed_attempts = 0
                 db.commit()
-                # 👇 IMPORTANT: refresh so attributes are loaded even after session closes
+                #  refresh so attributes are loaded even after session closes
                 db.refresh(user)
                 return user
         except ValueError:
             # Hash is invalid / corrupted
             return None
 
-        # ---- If we reach here, password was wrong ----
         current_failed = getattr(user, "failed_attempts", 0) or 0
         current_failed += 1
         user.failed_attempts = current_failed
@@ -149,7 +150,6 @@ def reset_password(email: str, new_password: str) -> None:
       - raises ValueError if the email is not found
     """
     # Keep behaviour consistent with create_user / authenticate_user:
-    # they don't lowercase, so we only strip whitespace here.
     normalized_email = email.strip()
 
     db = get_db()
@@ -195,6 +195,18 @@ def get_portfolio(user_id: int) -> List[PortfolioPosition]:
 
 
 def _find_position(db: Session, user_id: int, ticker: str) -> Optional[PortfolioPosition]:
+    """
+    Internal helper function to find a portfolio position
+    for a given user and stock ticker.
+
+    Parameters:
+        db (Session): Active database session.
+        user_id (int): ID of the user.
+        ticker (str): Stock ticker symbol.
+
+    Returns:
+        Optional[PortfolioPosition]: Matching position or None.
+    """
     return (
         db.query(PortfolioPosition)
         .filter(

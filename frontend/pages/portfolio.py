@@ -16,6 +16,16 @@ from frontend.utils.portfolio_helpers import (
 
 
 def _render_alert_box(alert):
+    """
+    Render a styled alert box for a portfolio warning or notice.
+
+    The alert dictionary is expected to contain:
+    - severity,
+    - title,
+    - message.
+
+    Severity controls the colours and label shown in the UI.
+    """
     severity = alert.get("severity", "low")
     title = alert.get("title", "Portfolio alert")
     message = alert.get("message", "")
@@ -71,6 +81,13 @@ def _render_alert_box(alert):
 
 
 def _render_portfolio_takeaway(portfolio):
+    """
+    Render a highlighted takeaway card summarising the portfolio.
+
+    The summary is generated from helper logic and provides:
+    - a headline insight,
+    - a short explanatory detail paragraph.
+    """
     headline, detail = generate_portfolio_takeaway(portfolio)
 
     st.markdown(
@@ -99,6 +116,19 @@ def _render_portfolio_takeaway(portfolio):
 
 
 def _render_holdings_table(portfolio):
+    """
+    Render the portfolio holdings table using custom HTML.
+
+    The table displays:
+    - ticker,
+    - shares,
+    - average cost,
+    - current price,
+    - daily change,
+    - position value,
+    - unrealised profit/loss,
+    - portfolio weight.
+    """
     st.markdown('<div class="section-title">My holdings</div>', unsafe_allow_html=True)
 
     df = build_holdings_dataframe(portfolio)
@@ -217,6 +247,12 @@ def _render_holdings_table(portfolio):
     components.html(html, height=table_height, scrolling=False)
     
 def _render_account_summary(portfolio):
+    """
+    Render the account summary section showing:
+    - total portfolio value,
+    - total unrealised profit/loss,
+    - cost basis.
+    """
     st.markdown('<div class="section-title">Account summary</div>', unsafe_allow_html=True)
 
     total_value, cost_basis, unrealised_pl = compute_portfolio_unrealised(portfolio)
@@ -235,6 +271,12 @@ def _render_account_summary(portfolio):
 
 
 def _render_next_steps(portfolio):
+    """
+    Render a list of suggested next steps for the user.
+
+    These steps are generated dynamically based on the current
+    state of the simulated portfolio.
+    """
     steps = generate_suggested_next_steps(portfolio)
 
     st.markdown('<div class="section-title">Suggested next steps</div>', unsafe_allow_html=True)
@@ -258,6 +300,16 @@ def _render_next_steps(portfolio):
 
 
 def _render_risk_metrics(ticker):
+    """
+    Render historical risk and return metrics for the selected ticker.
+
+    Metrics shown:
+    - total return,
+    - maximum drawdown,
+    - Sharpe ratio.
+
+    These are accompanied by plain-English captions.
+    """
     st.markdown('<div class="section-title">Historical risk & return</div>', unsafe_allow_html=True)
 
     metrics, err = compute_risk_metrics_for_ticker(ticker)
@@ -291,6 +343,18 @@ def _render_risk_metrics(ticker):
 
 
 def render_portfolio_page(user, ticker):
+    """
+    Render the full portfolio page.
+
+    This page includes:
+    - a high-level portfolio takeaway,
+    - holdings table,
+    - account summary,
+    - portfolio alerts,
+    - suggested next steps,
+    - allocation chart,
+    - historical risk and return metrics.
+    """
     st.subheader("📁 My Portfolio")
 
     portfolio = get_portfolio(user.id)

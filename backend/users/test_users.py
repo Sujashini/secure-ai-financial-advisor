@@ -1,10 +1,6 @@
 """
 Small CLI smoke-test script for the users & portfolio layer.
 
-Run from the project root with:
-
-    python -m backend.users.test_users
-
 This will:
   * Ensure the DB tables exist
   * Create a user if it doesn't exist yet

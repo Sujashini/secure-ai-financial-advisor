@@ -46,8 +46,20 @@ def generate_plain_english_explanation(
     style: str = "Balanced",
 ) -> list[str]:
     """
-    Returns a list of explanation paragraphs.
-    style: Simple | Balanced | Technical
+    Generate user-facing explanation paragraphs for the current recommendation.
+
+    Parameters:
+        ticker (str): Stock ticker symbol.
+        action (int): Numeric model action.
+        explanation (dict): Explanation dictionary containing positive
+            and negative contributors.
+        style (str): Explanation style:
+            - Simple
+            - Balanced
+            - Technical
+
+    Returns:
+        list[str]: Explanation paragraphs ready for UI display.
     """
     action_text = ACTION_MAP.get(action, "HOLD")
     style = (style or "Balanced").strip().title()
@@ -153,6 +165,22 @@ def generate_plain_english_explanation(
 
 
 def compute_signal_strength_and_confidence(explanation: dict):
+    """
+    Generate user-facing explanation paragraphs for the current recommendation.
+
+    Parameters:
+        ticker (str): Stock ticker symbol.
+        action (int): Numeric model action.
+        explanation (dict): Explanation dictionary containing positive
+            and negative contributors.
+        style (str): Explanation style:
+            - Simple
+            - Balanced
+            - Technical
+
+    Returns:
+        list[str]: Explanation paragraphs ready for UI display.
+    """
     abs_vals = []
     for item in explanation.get("top_positive", []):
         abs_vals.append(abs(float(item["value"])))
@@ -180,6 +208,18 @@ def compute_signal_strength_and_confidence(explanation: dict):
 
 
 def classify_risk_level(data: pd.DataFrame):
+    """
+    Estimate confidence level from the magnitude of explanation contributions.
+
+    Parameters:
+        explanation (dict): Explanation dictionary containing feature contributions.
+
+    Returns:
+        tuple:
+            label (str): Low / Medium / High / Unclear
+            confidence_pct (int): Rounded confidence percentage
+            subtitle (str): Plain-English interpretation
+    """
     if "volatility_10" not in data.columns or data["volatility_10"].dropna().empty:
         return "Unknown", "Not enough recent data to estimate risk."
 

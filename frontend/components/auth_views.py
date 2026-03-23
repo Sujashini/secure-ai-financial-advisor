@@ -17,6 +17,13 @@ from frontend.utils.auth_helpers import (
 
 
 def show_landing_page():
+    """
+    Render the public landing page shown before the user logs in.
+
+    This page introduces the SAFE-Bot system, highlights key features,
+    shows an illustrative backtest chart, and provides navigation
+    to the login and registration views.
+    """
     nav_left, nav_mid, nav_right1, nav_right2 = st.columns([6, 2.5, 1.2, 1.2])
 
     with nav_left:

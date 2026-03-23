@@ -10,6 +10,19 @@ TICKERS = ["AAPL", "MSFT", "NVDA"]  # you can add more later
 
 
 def train_for_ticker(ticker: str, episodes: int = 10):
+    """
+    Train a DQN agent for one specific stock ticker.
+
+    Parameters:
+        ticker (str): Stock ticker symbol.
+        episodes (int): Number of training episodes.
+
+    This function:
+    - loads market data for the selected stock,
+    - computes technical indicators,
+    - trains a DQN agent,
+    - saves the trained model for later evaluation or deployment.
+    """
     print(f"\n=== Training DQN for {ticker} ===")
 
     data = fetch_stock_data(ticker)
@@ -22,6 +35,9 @@ def train_for_ticker(ticker: str, episodes: int = 10):
 
     agent = DQNAgent(state_dim, action_dim)
 
+    # -------------------------
+    # Training loop
+    # -------------------------
     for episode in range(episodes):
         state, _ = env.reset()
         done = False

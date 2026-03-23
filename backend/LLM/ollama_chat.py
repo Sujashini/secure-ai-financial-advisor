@@ -5,6 +5,13 @@ MODEL_NAME = "mistral:7b"
 
 
 def _build_system_prompt():
+    """
+    Create the system prompt that defines the assistant's role,
+    tone, and safety constraints.
+
+    This prompt ensures the model behaves as an educational
+    financial assistant rather than a personalised investment advisor.
+    """
     return """
 You are a clear, calm, educational AI financial advisor assistant inside a student project demo.
 
@@ -77,6 +84,7 @@ Only mention the most relevant signals for this question.
 
 
 def _clean_answer(answer: str) -> str:
+    #Clean and standardise the model output before displaying it.
     answer = answer.strip()
 
     answer = re.sub(r"\n{3,}", "\n\n", answer)
@@ -86,9 +94,8 @@ def _clean_answer(answer: str) -> str:
         answer = answer[:1600].rstrip() + "..."
 
     return answer
-
-
 def chat_with_advisor(
+        #Generate an educational response to the user's question using the local Ollama language model.
     user_question,
     ticker,
     action_text,
@@ -124,7 +131,6 @@ def chat_with_advisor(
 
     answer = response["message"]["content"]
     return _clean_answer(answer)
-
 
 def summarize_conversation(ticker, conversation_history):
     summary_prompt = f"""

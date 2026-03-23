@@ -7,6 +7,18 @@ from frontend.utils.constants import REMEMBER_ME_PATH
 
 
 def initialize_session_state():
+    """
+    Build a historical performance comparison chart between:
+    - the RL strategy,
+    - buy-and-hold,
+    - RSI baseline strategy.
+
+    Parameters:
+        ticker (str): Stock ticker symbol.
+
+    Returns:
+        Altair chart or None if comparison data cannot be loaded.
+    """
     if "user" not in st.session_state:
         st.session_state["user"] = None
 
@@ -21,6 +33,13 @@ def initialize_session_state():
 
 
 def try_auto_login():
+    """
+    Initialise the main Streamlit session state variables
+    used across the application.
+
+    This ensures that key values always exist before the UI
+    starts reading or updating them.
+    """
     if st.session_state["user"] is None and os.path.exists(REMEMBER_ME_PATH):
         try:
             with open(REMEMBER_ME_PATH, "r", encoding="utf-8") as f:
